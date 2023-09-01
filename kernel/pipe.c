@@ -10,6 +10,8 @@
 
 #define PIPESIZE 512
 
+#define MIN(x,y) ((x) < (y) ? (x) : (y))
+
 struct pipe {
   struct spinlock lock;
   char data[PIPESIZE];
@@ -89,11 +91,18 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
       wakeup(&pi->nread);
       sleep(&pi->nwrite, &pi->lock);
     } else {
-      char ch;
-      if(copyin(pr->pagetable, &ch, addr + i, 1) == -1)
-        break;
-      pi->data[pi->nwrite++ % PIPESIZE] = ch;
-      i++;
+      //char ch;
+      //if(copyin(pr->pagetable, &ch, addr + i, 1) == -1)
+      //  break;
+      //pi->data[pi->nwrite++ % PIPESIZE] = ch;
+      //i++;
+      char buf[PIPESIZE];
+      unsigned int k = MIN(n-i,PIPESIZE-(pi->nwrite - pi->nread));
+      if(copyin(pr->pagetable,buf,addr + i,k) == -1)
+          break;
+      for(int j = 0;j < k; j++)
+          pi->data[pi->nwrite++ % PIPESIZE] = buf[j];
+      i+=k;
     }
   }
   wakeup(&pi->nread);
