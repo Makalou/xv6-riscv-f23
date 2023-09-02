@@ -116,7 +116,7 @@ piperead(struct pipe *pi, uint64 addr, int n)
 {
   int i;
   struct proc *pr = myproc();
-  char ch;
+  //char ch;
 
   acquire(&pi->lock);
   while(pi->nread == pi->nwrite && pi->writeopen){  //DOC: pipe-empty
@@ -126,13 +126,15 @@ piperead(struct pipe *pi, uint64 addr, int n)
     }
     sleep(&pi->nread, &pi->lock); //DOC: piperead-sleep
   }
+
+  char buf[PIPESIZE];
   for(i = 0; i < n; i++){  //DOC: piperead-copy
     if(pi->nread == pi->nwrite)
       break;
-    ch = pi->data[pi->nread++ % PIPESIZE];
-    if(copyout(pr->pagetable, addr + i, &ch, 1) == -1)
-      break;
+    buf[i] = pi->data[pi->nread++ % PIPESIZE];
   }
+  if(copyout(pr->pagetable, addr, buf, i) == -1)
+      i = 0;
   wakeup(&pi->nwrite);  //DOC: piperead-wakeup
   release(&pi->lock);
   return i;
