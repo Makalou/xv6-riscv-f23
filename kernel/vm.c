@@ -355,8 +355,6 @@ void* my_memcpy (void* restrict dst, const void* restrict src, uint n)
     for(;i>=8; i-=8)
         *d++ = *s++;
 
-    printf("[%d,%d]\n",n,i);
-
     if(i==0) return dst;
 
     char* dd = (char*)dst + n - i;
