@@ -80,6 +80,7 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
 {
   int i = 0;
   struct proc *pr = myproc();
+  char buf[PIPESIZE];
 
   acquire(&pi->lock);
   while(i < n){
@@ -91,12 +92,6 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
       wakeup(&pi->nread);
       sleep(&pi->nwrite, &pi->lock);
     } else {
-      //char ch;
-      //if(copyin(pr->pagetable, &ch, addr + i, 1) == -1)
-      //  break;
-      //pi->data[pi->nwrite++ % PIPESIZE] = ch;
-      //i++;
-      char buf[PIPESIZE];
       unsigned int k = MIN(n-i,PIPESIZE-(pi->nwrite - pi->nread));
       if(copyin(pr->pagetable,buf,addr + i,k) == -1)
           break;
