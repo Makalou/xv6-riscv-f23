@@ -345,13 +345,18 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
-void* my_memcpy (void* restrict dst, const void* restrict src, uint n)
+void* my_memcpy64 (void* restrict dst, const void* restrict src, uint n)
 {
+    // Check if 8-bytes aligned
+    if(((unsigned long)src & 0x7) != 0 ||((unsigned long)dst & 0x7) != 0)
+        return memmove(dst,src,n);
+
     typedef uint64 __attribute__((__may_alias__)) u64;
     u64* d = dst;
     const u64* s = src;
 
     int i = n;
+
     for(;i>=8; i-=8)
         *d++ = *s++;
 
@@ -360,24 +365,11 @@ void* my_memcpy (void* restrict dst, const void* restrict src, uint n)
     char* dd = (char*)dst + n - i;
     const char* ss = (char*)src + n - i;
 
-    for(int j = 0;j<i;j++)
+    for(int j =0;j<i;j++)
     {
         *dd++ = *ss++;
     }
     return dst;
-}
-
-void* my_memmove(void* dst, const void* src, uint n)
-{
-    char *d = dst;
-    const char *s = src;
-
-    return my_memcpy(d, s, n);
-
-    if (d==s) return d;
-    if (s+n <= d || d+n <= s) return my_memcpy(d, s, n);
-
-    return memmove(dst,src,n);
 }
 
 // Copy from kernel to user.
@@ -396,7 +388,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
-    my_memmove((void *)(pa0 + (dstva - va0)), src, n);
+    my_memcpy64((void *)(pa0 + (dstva - va0)), src, n);
 
     len -= n;
     src += n;
@@ -421,7 +413,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     n = PGSIZE - (srcva - va0);
     if(n > len)
       n = len;
-    my_memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+    my_memcpy64(dst, (void *)(pa0 + (srcva - va0)), n);
 
     len -= n;
     dst += n;
