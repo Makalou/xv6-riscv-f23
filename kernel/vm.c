@@ -351,6 +351,8 @@ void* my_memcpy64 (void* restrict dst, const void* restrict src, uint n)
     if(((unsigned long)src & 0x7) != 0 ||((unsigned long)dst & 0x7) != 0)
         return memmove(dst,src,n);
 
+    // For those have correct alignment but less than 8 bytes,
+    // We fallback to btyes to btyes copy
     if(n<8){
         for(int i =0;i<n;++i)
             *(char*)(dst++) = *(char*)(src++);
