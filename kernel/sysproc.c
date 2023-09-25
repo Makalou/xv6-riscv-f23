@@ -89,3 +89,24 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_ringbuf(void)
+{
+    char buf_name[16];
+    argstr(0,buf_name,16);
+    int op;
+    argint(1,&op);
+    void** addr = 0;
+    argaddr(2,(uint64*)(addr));
+
+    if(op == 1){
+        ringbufopen(buf_name,addr);
+    }else if(op == 0){
+        ringbufclose(buf_name,*addr);
+    }else{
+        panic("Unknown operation on ringbuf.");
+    }
+
+    return 0;
+}
