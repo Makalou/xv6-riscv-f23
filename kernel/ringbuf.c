@@ -21,12 +21,8 @@ struct book
     uint64 read_done, write_done;
 };
 
-int is_empty()
-{
-    return 0;
-}
-
-int ringbufmap(pagetable_t pg, struct ringbuf* rb, void** va)
+int
+ringbufmap(pagetable_t pg, struct ringbuf* rb, void** va)
 {
     uint64 pages_need = 2 * RINGBUF_SIZE + 1;
 
@@ -65,12 +61,72 @@ int ringbufmap(pagetable_t pg, struct ringbuf* rb, void** va)
     return 0;
 }
 
+int
+unmap_check(pagetable_t pg, uint64 va, uint64 pa)
+{
+    pte_t *pte;
+    if((pte = walk(pg, va, 0)) == 0)
+        return -1;
+    if((*pte & PTE_V) == 0)
+        return -1;
+    if(PTE_FLAGS(*pte) == PTE_V)
+        return -1;
+    if(PTE2PA(*pte) != pa){
+        return -1;
+    }
+
+    return 0;
+}
+
+int
+ringbufunmap(pagetable_t pg, struct ringbuf* rb, void* va)
+{
+
+    uint64 a = (uint64)va;
+    pte_t *pte;
+
+    if(((uint64)va % PGSIZE) != 0)
+        return -1;
+
+    for(int i = 0; i < RINGBUF_SIZE; i++)
+    {
+        if(unmap_check(pg,a+PGSIZE*i,(uint64)rb->buf[i])!=0)
+            return -1;
+    }
+
+    for(int i = 0; i < RINGBUF_SIZE; i++)
+    {
+        if(unmap_check(pg,a+PGSIZE*i,(uint64)rb->buf[i])!=0)
+            return -1;
+    }
+
+    if(unmap_check(pg,a + PGSIZE * (2*RINGBUF_SIZE),(uint64)rb->book)!=0)
+        return -1;
+
+    //Do the actul unmap
+    for(int i = 0; i < RINGBUF_SIZE; i++)
+    {
+        pte = walk(pg, a + PGSIZE * i, 0);
+        *pte = 0;
+    }
+
+    for(int i = 0; i < RINGBUF_SIZE; i++)
+    {
+        pte = walk(pg, a + PGSIZE * (RINGBUF_SIZE + i), 0);
+        *pte = 0;
+    }
+
+    pte = walk(pg, a + PGSIZE * (2*RINGBUF_SIZE),0);
+    *pte = 0;
+
+    return 0;
+}
+
 void
 ringbufalloc(struct ringbuf* rb)
 {
     for(int i = 0;i<RINGBUF_SIZE;++i)
         rb->buf[i] = kalloc();
-    //TODO: book
     rb->book = kalloc();
 }
 
@@ -79,6 +135,7 @@ ringbuffree(struct ringbuf* rb)
 {
     for(int i = 0;i<RINGBUF_SIZE;++i)
         kfree(rb->buf[i]);
+    kfree(rb->book);
 }
 
 int
@@ -88,20 +145,21 @@ ringbufopen(const char* name,void ** addr)
     struct proc* p = myproc();
     //Check if already exist
     for(int i = 0;i< NELEM(ringbufs);i++){
-        if(strncmp(name,ringbufs[i].name,16) == 0 && ringbufs[i].refcount>0){
-            if(ringbufmap(p->pagetable,&ringbufs[i],addr) == 0){
+        if(strncmp(name,ringbufs[i].name,16) == 0 && ringbufs[i].refcount>0) //test refcount first. short circuit :)
+        {
+            if(ringbufmap(p->pagetable,&ringbufs[i],addr) == 0)
+            {
                 ringbufs[i].refcount ++;
                 return 0;
             }
         }
     }
 
-    printf("No exits ringbuf found for %s\n",name);
-
     for(int i = 0;i< NELEM(ringbufs);i++){
         if(ringbufs[i].refcount == 0){
             ringbufalloc(&ringbufs[i]);
-            if(ringbufmap(p->pagetable,&ringbufs[i],addr) == 0){
+            if(ringbufmap(p->pagetable,&ringbufs[i],addr) == 0)
+            {
                 strncpy(ringbufs[i].name,name, strlen(name));
                 ringbufs[i].refcount ++;
                 return 0;
@@ -114,15 +172,17 @@ ringbufopen(const char* name,void ** addr)
 int
 ringbufclose(const char* name,void* addr)
 {
+    //TODO : What if:
+    //            1.The process try to close a buf it doesn't ref to ?
+    //            2.The name is correct, but the address doesn't match ... ?
+    struct proc* p = myproc();
     for(int i = 0;i< NELEM(ringbufs);i++){
-        if(strncmp(name,ringbufs[i].name,16)){
-           ringbufs[i].refcount --;
-           //TODO: do we need to unmap ?
-           if(ringbufs[i].refcount == 0){
-               //TODO: grabage collect physical pages ...
-               ringbuffree(&ringbufs[i]);
-           }
-        }
+        if(strncmp(name,ringbufs[i].name,16) != 0)
+            continue;
+        if(ringbufunmap(p->pagetable,&ringbufs[i],addr) != 0)
+            return -1;
+        if(--ringbufs[i].refcount == 0)
+            ringbuffree(&ringbufs[i]);
     }
     return 0;
 }

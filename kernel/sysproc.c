@@ -102,13 +102,15 @@ sys_ringbuf(void)
     uint64 addr = 0;
     argaddr(2,&addr);
 
+    struct proc* p = myproc();
+
+    void* k_ptr;
     if(op == 1){
-        void* res_ptr;
-        ringbufopen(buf_name,&res_ptr);
-        struct proc* p = myproc();
-        copyout(p->pagetable,addr,(char*)&res_ptr,sizeof(void*));
+        ringbufopen(buf_name,&k_ptr);
+        copyout(p->pagetable,addr,(char*)&k_ptr,sizeof(void*));
     }else if(op == 0){
-        ringbufclose(buf_name,*(void**)addr);
+        copyin(p->pagetable,(char*)&k_ptr,addr,sizeof(void*));
+        ringbufclose(buf_name,k_ptr);
     }else{
         panic("Unknown operation on ringbuf.");
     }
