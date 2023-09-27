@@ -191,6 +191,7 @@ ringbufclose(const char* name,void* addr)
             if(--ringbufs[i].refcount == 0)
             {
                 ringbuffree(&ringbufs[i]);
+                memset(ringbufs[i].name,0,16);
             }
             release(&ringbuf_lock);
             return 0;
