@@ -141,7 +141,7 @@ ringbuffree(struct ringbuf* rb)
 int
 ringbufopen(const char* name,void ** addr)
 {
-    //TODO: race condition caution
+    acquire(&ringbuf_lock);
     struct proc* p = myproc();
     //Check if already exist
     for(int i = 0;i< NELEM(ringbufs);i++){
@@ -150,6 +150,7 @@ ringbufopen(const char* name,void ** addr)
             if(ringbufmap(p->pagetable,&ringbufs[i],addr) == 0)
             {
                 ringbufs[i].refcount ++;
+                release(&ringbuf_lock);
                 return 0;
             }
         }
@@ -162,11 +163,13 @@ ringbufopen(const char* name,void ** addr)
             {
                 strncpy(ringbufs[i].name,name, strlen(name));
                 ringbufs[i].refcount ++;
+                release(&ringbuf_lock);
                 return 0;
             }
         }
     }
-    panic("Failed to open ringbuf.");
+    release(&ringbuf_lock);
+    return -1;
 }
 
 int
@@ -175,16 +178,26 @@ ringbufclose(const char* name,void* addr)
     //TODO : What if:
     //            1.The process try to close a buf it doesn't ref to ?
     //            2.The name is correct, but the address doesn't match ... ?
+    acquire(&ringbuf_lock);
     struct proc* p = myproc();
     for(int i = 0;i< NELEM(ringbufs);i++){
-        if(strncmp(name,ringbufs[i].name,16) != 0)
-            continue;
-        if(ringbufunmap(p->pagetable,&ringbufs[i],addr) != 0)
-            return -1;
-        if(--ringbufs[i].refcount == 0)
-            ringbuffree(&ringbufs[i]);
+        if(strncmp(name,ringbufs[i].name,16) == 0)
+        {
+            if(ringbufunmap(p->pagetable,&ringbufs[i],addr) != 0)
+            {
+                release(&ringbuf_lock);
+                return -1;
+            }
+            if(--ringbufs[i].refcount == 0)
+            {
+                ringbuffree(&ringbufs[i]);
+            }
+            release(&ringbuf_lock);
+            return 0;
+        }
     }
-    return 0;
+    release(&ringbuf_lock);
+    return -1;
 }
 
 
