@@ -93,34 +93,25 @@ sys_uptime(void)
 uint64
 sys_ringbuf(void)
 {
-    //TODO: check name validity(1-15 bytes)
-    char buf_name[16];
-    argstr(0,buf_name,16);
+    char buf_name[16];//16 bytes including nul-terminator
+    int slen = argstr(0,buf_name,16);
+    if(slen<=0||slen>15)
+        panic("buf_name should range in 1-15 bytes\n");
     int op;
     argint(1,&op);
     uint64 addr = 0;
     argaddr(2,&addr);
 
-    printf(buf_name);
-    printf("\n");
-
-    void* ptr = (void*)0x12345;
-    struct proc* p = myproc();
-    copyout(p->pagetable,addr,(char*)&ptr,sizeof(void*));
-
-    return 0;
-
-    void** res_ptr;
-
     if(op == 1){
-        ringbufopen(buf_name,res_ptr);
+        void* res_ptr;
+        ringbufopen(buf_name,&res_ptr);
+        struct proc* p = myproc();
+        copyout(p->pagetable,addr,(char*)&res_ptr,sizeof(void*));
     }else if(op == 0){
-        ringbufclose(buf_name,res_ptr);
+        ringbufclose(buf_name,*(void**)addr);
     }else{
         panic("Unknown operation on ringbuf.");
     }
-
-    copyout(p->pagetable,addr,(char*)res_ptr,sizeof(void*));
 
     return 0;
 }
