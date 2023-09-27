@@ -9,8 +9,9 @@ struct ringbuf
 {
     int refcount;
     char name[16];
-    void *buf[RINGBUF_SIZE];
-    void *book;
+    void* buf[RINGBUF_SIZE];
+    void* book;
 };
 
 extern struct ringbuf ringbufs[];
+

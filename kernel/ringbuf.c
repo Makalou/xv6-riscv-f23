@@ -42,6 +42,7 @@ ringbufalloc(struct ringbuf* rb)
 {
     for(int i = 0;i<RINGBUF_SIZE;++i)
         rb->buf[i] = kalloc();
+    //TODO: book
 }
 
 void
