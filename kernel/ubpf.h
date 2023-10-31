@@ -16,6 +16,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef UBPF_H
+#define UBPF_H
+
 #include "types.h"
 
 #define UBPF_STACK_SIZE 512
@@ -78,3 +81,5 @@ struct ubpf_stack_frame
     uint16_t return_address;
     uint64_t saved_registers[4];
 };
+
+#endif
