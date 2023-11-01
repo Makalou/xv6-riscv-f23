@@ -20,15 +20,26 @@
 #define UBPF_H
 
 #include "types.h"
+#include "riscv.h"
+#include "defs.h"
 
 #define UBPF_STACK_SIZE 512
+#define UBPF_MAX_CALL_DEPTH 10
+#define MAX_EXT_FUNCS 64
+#define NULL 0
+#define true 1
+#define false 0
+
+#define UNUSED(x) ((void)x)
 
 /**
  * @brief Opaque type for a uBPF JIT compiled function.
  */
 typedef uint64_t (*ubpf_jit_fn)(void* mem, size_t mem_len);
 
-typedef uint64_t (*ext_func)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4);
+typedef struct {
+    uint64_t (*func)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4);
+} ext_func;
 
 /**
  * @brief Data relocation function that is called by the VM when it encounters a
