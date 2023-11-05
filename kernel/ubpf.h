@@ -30,7 +30,12 @@
 #define true 1
 #define false 0
 
+#define UBPF_MAX_INSTS 65536
+
 #define UNUSED(x) ((void)x)
+
+#define ERR(fmt, ...) \
+  printf("%d: error: " fmt "\n", __LINE__, ##__VA_ARGS__)
 
 /**
  * @brief Opaque type for a uBPF JIT compiled function.
@@ -69,7 +74,7 @@ struct ubpf_vm
     uint16_t num_insts;
     ubpf_jit_fn jitted;
     size_t jitted_size;
-    ext_func* ext_funcs;
+    ext_func** ext_funcs;
     bool* int_funcs;
     const char** ext_func_names;
     bool bounds_check_enabled;
