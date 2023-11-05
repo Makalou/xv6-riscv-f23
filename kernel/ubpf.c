@@ -18,13 +18,13 @@
  */
 
 #include "ubpf.h"
-#include "ebpf.h"
 
 // use global variables instead of using malloc
 struct ubpf_vm g_ubpf_vm;
 ext_func g_ext_funcs[MAX_EXT_FUNCS];
 const char* g_ext_func_names[MAX_EXT_FUNCS];
-
+struct ebpf_inst g_ebpf_inst[UBPF_MAX_INSTS];
+bool g_int_funcs[NUM_INSTS_MAX];
 
 int
 ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
@@ -302,6 +302,18 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
     return true;
 }
 
+void
+ubpf_store_instruction(const struct ubpf_vm* vm, uint16_t pc, struct ebpf_inst inst)
+{
+    // XOR instruction with base address of vm.
+    // This makes ROP attack more difficult.
+    ebpf_encoded_inst encode_inst;
+    encode_inst.inst = inst;
+    encode_inst.value ^= (uint64_t)vm->insts;
+    encode_inst.value ^= vm->pointer_secret;
+    vm->insts[pc] = encode_inst.inst;
+}
+
 int
 ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len)
 {
@@ -324,10 +336,34 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len)
     if (!validate(vm, code, code_len / 8)) {
         return -1;
     }
-    // the latter is truncated. TODO: add the remaining code
-    return 0;
 
-    //vm->insts = malloc(code_len);
+    vm->insts = g_ebpf_inst;
+    if (vm->insts == NULL) {
+        ERR("out of memory");
+        return -1;
+    }
+    vm->num_insts = code_len / sizeof(vm->insts[0]);
+    vm->int_funcs = g_int_funcs;
+    if (!vm->int_funcs) {
+        ERR("out of memory");
+        return -1;
+    }
+
+    const struct ebpf_inst* source_inst = code;
+    for (uint32_t i = 0; i < vm->num_insts; i++) {
+        /* Mark targets of local call instructions. They
+         * represent the beginning of local functions and
+         * the jitter may need to do something special with
+         * them.
+         */
+        if (source_inst[i].opcode == EBPF_OP_CALL && source_inst[i].src == 1) {
+            uint32_t target = i + source_inst[i].imm + 1;
+            vm->int_funcs[target] = true;
+        }
+        // Store instructions in the vm.
+        ubpf_store_instruction(vm, i, source_inst[i]);
+    }
+    return 0;
 }
 
 /*

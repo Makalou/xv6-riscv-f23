@@ -22,6 +22,7 @@
 #include "types.h"
 #include "riscv.h"
 #include "defs.h"
+#include "ebpf.h"
 
 #define UBPF_STACK_SIZE 512
 #define UBPF_MAX_CALL_DEPTH 10
@@ -31,6 +32,8 @@
 #define false 0
 
 #define UBPF_MAX_INSTS 65536
+
+#define NUM_INSTS_MAX (UBPF_MAX_INSTS/8)
 
 #define UNUSED(x) ((void)x)
 
@@ -97,5 +100,14 @@ struct ubpf_stack_frame
     uint16_t return_address;
     uint64_t saved_registers[4];
 };
+
+typedef struct _ebpf_encoded_inst
+{
+    union
+    {
+        uint64_t value;
+        struct ebpf_inst inst;
+    };
+} ebpf_encoded_inst;
 
 #endif
