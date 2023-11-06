@@ -30,6 +30,7 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o \
   $K/ubpf.o \
+  $K/bpf_loader.o \
   $K/sysbpf.o \
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-

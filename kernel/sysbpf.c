@@ -1,7 +1,5 @@
 #include "types.h"
-//#include "riscv.h"
-typedef  uint64* pagetable_t;
-typedef  uint64 pte_t;
+#include "riscv.h"
 #include "param.h"
 #include "spinlock.h"
 #include "proc.h"
@@ -11,11 +9,9 @@ typedef  uint64 pte_t;
 
 int bpf_load_prog(const char* filename,int size)
 {
-    //int ubpf_load(struct ubpf_vm* vm,
-    //              const void* code,
-    //              uint32_t code_len,
-    //              char** errmsg)
-    return 0;
+    int h = ubpf_load_elf_ex(&g_ubpf_vm,filename,size,NULL);
+    printf("%d\n",h);
+    return h;
 }
 
 int bpf_attach_prog(char* attach_point,int nbytes)

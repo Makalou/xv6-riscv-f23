@@ -122,4 +122,11 @@ int bpf_syscall_post_filter(int syscall_num,int pid,int syscall_result);
 
 void bpf_syscall_post_trace(int syscall_num,int pid,int syscall_result);
 
+unsigned int
+ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name);
+
+int ubpf_load(struct ubpf_vm*, const void* ,uint32_t);
+
+int ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_len, const char* main_section_name);
+
 #endif

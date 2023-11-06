@@ -10,7 +10,10 @@ int
 main(int argc, char *argv[]) {
     //filter mkdir syscall
     if(strcmp(argv[1],"1")==0) {
-        bpf(BPF_PROG_LOAD, "prog.bpf.o", 11);
+        int fd = open("prog.bpf.o",O_RDONLY);
+        char elf[1024];
+        int rb = read(fd,elf,1024);
+        bpf(BPF_PROG_LOAD, elf, rb);
         bpf(BPF_PROG_ATTACH, "syscall_pre_filter", 18);
     }else{
         bpf(BPF_PROG_UNATTACH,"",0);
