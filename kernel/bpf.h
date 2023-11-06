@@ -1,0 +1,17 @@
+//BPF COMMAND
+#ifndef BPF_H
+#define BPF_H
+
+#define BPF_PROG_LOAD 0
+#define BPF_PROG_ATTACH 1
+#define BPF_PROG_UNATTACH 2
+
+#define BPF_RAW_TRACEPOINT_OPEN 3
+
+#define BPF_MAP_CREATE 4
+#define BPF_MAP_LOOKUP_ELEM 5
+#define BPF_MAP_UPDATE_ELEM 6
+#define BPF_MAP_DELETE_ELEM 7
+
+#endif
+

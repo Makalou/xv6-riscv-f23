@@ -18,6 +18,9 @@
  */
 
 #include "ubpf.h"
+#include "ebpf.h"
+#include "riscv.h"
+#include "defs.h"
 
 // use global variables instead of using malloc
 struct ubpf_vm g_ubpf_vm;
@@ -25,6 +28,8 @@ ext_func g_ext_funcs[MAX_EXT_FUNCS];
 const char* g_ext_func_names[MAX_EXT_FUNCS];
 struct ebpf_inst g_ebpf_inst[UBPF_MAX_INSTS];
 bool g_int_funcs[NUM_INSTS_MAX];
+
+int current_attach_point = 0;
 
 int
 ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
@@ -309,7 +314,7 @@ ubpf_store_instruction(const struct ubpf_vm* vm, uint16_t pc, struct ebpf_inst i
     // This makes ROP attack more difficult.
     ebpf_encoded_inst encode_inst;
     encode_inst.inst = inst;
-    encode_inst.value ^= (uint64_t)vm->insts;
+    encode_inst.value ^= (uint64)vm->insts;
     encode_inst.value ^= vm->pointer_secret;
     vm->insts[pc] = encode_inst.inst;
 }
@@ -318,7 +323,7 @@ int
 ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len)
 {
     //const struct ebpf_inst* source_inst = code;
-    if (UBPF_STACK_SIZE % sizeof(uint64_t) != 0) {
+    if (UBPF_STACK_SIZE % sizeof(uint64) != 0) {
         ERR("UBPF_STACK_SIZE must be a multiple of 8");
         return -1;
     }

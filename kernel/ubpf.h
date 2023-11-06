@@ -20,9 +20,9 @@
 #define UBPF_H
 
 #include "types.h"
-#include "riscv.h"
-#include "defs.h"
 #include "ebpf.h"
+//#include "riscv.h"
+//#include "defs.h"
 
 #define UBPF_STACK_SIZE 512
 #define UBPF_MAX_CALL_DEPTH 10
@@ -43,10 +43,11 @@
 /**
  * @brief Opaque type for a uBPF JIT compiled function.
  */
-typedef uint64_t (*ubpf_jit_fn)(void* mem, size_t mem_len);
+typedef uint64 (*ubpf_jit_fn)(void* mem, size_t mem_len);
+
 
 typedef struct {
-    uint64_t (*func)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4);
+    uint64 (*func)(uint64 arg0, uint64 arg1, uint64 arg2, uint64 arg3, uint64 arg4);
 } ext_func;
 
 /**
@@ -61,15 +62,15 @@ typedef struct {
  * @param[in] symbol_size Size of the symbol.
  * @return uint64_t The value to insert into the BPF program.
  */
-typedef uint64_t (*ubpf_data_relocation)(
+typedef uint64 (*ubpf_data_relocation)(
     void* user_context,
     const uint8_t* data,
-    uint64_t data_size,
+    uint64 data_size,
     const char* symbol_name,
-    uint64_t symbol_offset,
-    uint64_t symbol_size);
+    uint64 symbol_offset,
+    uint64 symbol_size);
 
-typedef bool (*ubpf_bounds_check)(void* context, uint64_t addr, uint64_t size);
+typedef bool (*ubpf_bounds_check)(void* context, uint64 addr, uint64 size);
 
 struct ubpf_vm
 {
@@ -85,29 +86,40 @@ struct ubpf_vm
     //int (*error_printf)(FILE* stream, const char* format, ...);
     int (*translate)(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
     int unwind_stack_extension_index;
-    uint64_t pointer_secret;
+    uint64 pointer_secret;
     ubpf_data_relocation data_relocation_function;
     void* data_relocation_user_data;
     ubpf_bounds_check bounds_check_function;
     void* bounds_check_user_data;
 #ifdef DEBUG
-    uint64_t* regs;
+    uint64* regs;
 #endif
 };
 
 struct ubpf_stack_frame
 {
     uint16_t return_address;
-    uint64_t saved_registers[4];
+    uint64 saved_registers[4];
 };
 
 typedef struct _ebpf_encoded_inst
 {
     union
     {
-        uint64_t value;
+        uint64 value;
         struct ebpf_inst inst;
     };
 } ebpf_encoded_inst;
+
+extern struct ubpf_vm g_ubpf_vm;
+extern int current_attach_point;
+
+void bpf_syscall_pre_trace(int syscall_num,int pid);
+
+int bpf_syscall_pre_filter(int syscall_num,int pid);
+
+int bpf_syscall_post_filter(int syscall_num,int pid,int syscall_result);
+
+void bpf_syscall_post_trace(int syscall_num,int pid,int syscall_result);
 
 #endif

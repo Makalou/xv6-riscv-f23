@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "syscall.h"
 #include "defs.h"
+#include "ubpf.h"
 
 // Fetch the uint64 at addr from the current process.
 int
@@ -101,6 +102,7 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+extern uint64 sys_bpf(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -126,6 +128,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_bpf]     sys_bpf,
 };
 
 void
@@ -138,7 +141,17 @@ syscall(void)
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
-    p->trapframe->a0 = syscalls[num]();
+    bpf_syscall_pre_trace(num,p->pid);
+    if(bpf_syscall_pre_filter(num,p->pid)<0){
+        printf("%d %s: unpermitted sys call\n",
+               p->pid, p->name, num);
+        p->trapframe->a0 = -1;
+        return;
+    }
+    int result = syscalls[num]();
+    result = bpf_syscall_post_filter(num,p->pid,result);
+    p->trapframe->a0 = result;
+    bpf_syscall_post_trace(num,p->pid,result);
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
