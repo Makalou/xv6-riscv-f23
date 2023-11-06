@@ -64,6 +64,56 @@ void free(void* mem)
     kfree(mem);
 }
 
+int ehdr_check(const Elf64_Ehdr* ehdr)
+{
+    if (!ehdr) {
+        printf("not enough data for ELF header\n");
+        return -1;
+    }
+
+    if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG)) {
+        printf("wrong magic\n");
+        return -1;
+    }
+
+    if (ehdr->e_ident[EI_CLASS] != ELFCLASS64) {
+        printf("wrong class\n");
+        return -1;
+    }
+
+    if (ehdr->e_ident[EI_DATA] != ELFDATA2LSB) {
+        printf("wrong byte order");
+        return -1;
+    }
+
+    if (ehdr->e_ident[EI_VERSION] != 1) {
+        printf("wrong version");
+        return -1;
+    }
+
+    if (ehdr->e_ident[EI_OSABI] != ELFOSABI_NONE) {
+        printf("wrong OS ABI");
+        return -1;
+    }
+
+    if (ehdr->e_type != ET_REL) {
+        printf("wrong type, expected relocatable");
+        return -1;
+    }
+
+    if (ehdr->e_machine != EM_NONE && ehdr->e_machine != EM_BPF) {
+        printf("wrong machine, expected none or BPF, got %d");
+        return -1;
+    }
+
+    if (ehdr->e_shnum > MAX_SECTIONS) {
+        printf("too many sections");
+        return -1;
+    }
+
+    return 0;
+}
+
 int
 ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const char* main_function_name)
 {
@@ -76,52 +126,14 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
     struct relocated_function** relocated_functions = NULL;
 
     const Elf64_Ehdr* ehdr = bounds_check(&b, 0, sizeof(*ehdr));
-    if (!ehdr) {
-        printf("not enough data for ELF header\n");
-        goto error;
-    }
 
-    if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG)) {
-        printf("wrong magic\n");
-        goto error;
-    }
-
-    if (ehdr->e_ident[EI_CLASS] != ELFCLASS64) {
-        printf("wrong class\n");
-        goto error;
-    }
-
-    if (ehdr->e_ident[EI_DATA] != ELFDATA2LSB) {
-        printf("wrong byte order");;
-        goto error;
-    }
-
-    if (ehdr->e_ident[EI_VERSION] != 1) {
-        printf("wrong version");;
-        goto error;
-    }
-
-    if (ehdr->e_ident[EI_OSABI] != ELFOSABI_NONE) {
-        printf("wrong OS ABI");;
-        goto error;
-    }
-
-    if (ehdr->e_type != ET_REL) {
-        printf("wrong type, expected relocatable");;
-        goto error;
-    }
-
-    if (ehdr->e_machine != EM_NONE && ehdr->e_machine != EM_BPF) {
-        printf("wrong machine, expected none or BPF, got %d");;
-        goto error;
-    }
-
-    if (ehdr->e_shnum > MAX_SECTIONS) {
-        printf("too many sections");;
+    if(ehdr_check(ehdr)!=0){
         goto error;
     }
 
     section_count = ehdr->e_shnum;
+
+    //printf("section_count : %d\n",section_count);
 
     /* Parse section headers into an array */
     section sections[MAX_SECTIONS];
@@ -129,14 +141,14 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
     for (i = 0; i < section_count; i++) {
         const Elf64_Shdr* shdr = bounds_check(&b, current_section_header_offset, sizeof(Elf64_Ehdr*));
         if (!shdr) {
-            printf("bad section header offset or size");;
+            printf("bad section header offset or size");
             goto error;
         }
         current_section_header_offset += ehdr->e_shentsize;
 
         const void* data = bounds_check(&b, shdr->sh_offset, shdr->sh_size);
         if (!data) {
-            printf("bad section offset or size");;
+            printf("bad section offset or size");
             goto error;
         }
 
@@ -157,7 +169,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
     }
 
     if (!strtab_data) {
-        printf("could not find the string table in the elf file");;
+        printf("could not find the string table in the elf file");
         goto error;
     }
 
@@ -173,27 +185,26 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
     }
 
     if (!symbols) {
-        printf("could not find the symbol table in the elf file");;
+        printf("could not find the symbol table in the elf file");
         goto error;
     }
 
     uint64 total_symbols = symtab_size / sizeof(Elf64_Sym);
     uint linked_program_size = 0;
-
     /*
      * Be conservative and assume that each of the symbols represents a function.
      */
     relocated_functions = (struct relocated_function**)calloc(total_symbols, sizeof(struct relocated_function*));
 
     if (relocated_functions == NULL) {
-        printf("could not allocate memory for storing information about relocated functions");;
+        printf("could not allocate memory for storing information about relocated functions");
         goto error;
     }
 
     total_functions = 1;
     for (uint64 i = 0; i < total_symbols; i++) {
         const Elf64_Sym* sym = symbols + i;
-
+        //printf("%s\n",strtab_data+sym->st_name);
         if (ELF64_ST_TYPE(sym->st_info) != STT_FUNC) {
             continue;
         }
@@ -204,19 +215,19 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
         struct relocated_function rf = {};
 
         if (sym->st_name >= strtab_size) {
-            printf("a function symbol contained a bad name");;
+            printf("a function symbol contained a bad name");
             goto error;
         }
         rf.name = strtab_data + sym->st_name;
 
         if (sym->st_shndx > section_count) {
-            printf("a function symbol contained a bad section index");;
+            printf("a function symbol contained a bad section index");
             goto error;
         }
         rf.shdr = sections[sym->st_shndx].shdr;
 
         if (rf.shdr->sh_type != SHT_PROGBITS || rf.shdr->sh_flags != (SHF_ALLOC | SHF_EXECINSTR)) {
-            printf("function symbol %s points to a non-executable section");;
+            printf("function symbol %s points to a non-executable section");
             goto error;
         }
 
@@ -243,27 +254,26 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                     (struct relocated_function*)calloc(1, sizeof(struct relocated_function));
         }
         if (rfp == NULL) {
-            printf("could not allocate space to store metadata about a relocated function");;
+            printf("could not allocate space to store metadata about a relocated function");
             goto error;
         }
         memmove(rfp, &rf, sizeof(struct relocated_function));
     }
 
     if (!relocated_functions[0]) {
-        printf("%s function not found.", main_function_name);;
+        printf("%s function not found.", main_function_name);
         goto error;
     }
 
     linked_program = (char*)calloc(linked_program_size, sizeof(char));
     if (!linked_program) {
-        printf("failed to allocate memory for the linked program");;
+        printf("failed to allocate memory for the linked program");
         goto error;
     }
 
     uint64 current_landing_spot = 0;
     for (uint i = 0; i < total_functions; i++) {
-        memmove(
-                linked_program + current_landing_spot, relocated_functions[i]->native_data, relocated_functions[i]->size);
+        memmove(linked_program + current_landing_spot, relocated_functions[i]->native_data, relocated_functions[i]->size);
         relocated_functions[i]->landed = current_landing_spot / 8;
         relocated_functions[i]->linked_data = linked_program + current_landing_spot;
         current_landing_spot += relocated_functions[i]->size;
@@ -289,7 +299,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
         const Elf64_Rel* rs = relo_section->data;
 
         if (relo_symtab_idx >= section_count) {
-            printf("bad symbol table section index");;
+            printf("bad symbol table section index");
             goto error;
         }
 
@@ -304,7 +314,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
             memmove(&relocation, rs + j, sizeof(Elf64_Rel));
 
             if (ELF64_R_SYM(relocation.r_info) >= relo_symtab_num_syms) {
-                printf("a relocation contained a bad symbol index");;
+                printf("a relocation contained a bad symbol index");
                 goto error;
             }
 
@@ -314,7 +324,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
             Elf64_Sym relo_sym;
             memmove(&relo_sym, relo_syms + ELF64_R_SYM(relocation.r_info), sizeof(Elf64_Sym));
             if (relo_sym.st_name >= strtab_size) {
-                printf("a relocation's symbol contained a bad name");;
+                printf("a relocation's symbol contained a bad name");
                 goto error;
             }
             const char* relo_sym_name = strtab_data + relo_sym.st_name;
@@ -335,7 +345,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
             }
 
             if (!source_function) {
-                printf("a relocation's symbol contained a bad name");;
+                printf("a relocation's symbol contained a bad name");
                 goto error;
             }
 
@@ -346,44 +356,44 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                     source_function->landed + ((relocation.r_offset - source_function->native_section_start) / 8);
 
             if (!source_function) {
-                printf("an instruction with relocation is not in a function");;
+                printf("an instruction with relocation is not in a function");
                 goto error;
             }
 
             switch (ELF64_R_TYPE(relocation.r_info)) {
                 case R_BPF_64_64: {
                     if (relocation.r_offset + 8 > sections[relo_applies_to_section].size) {
-                        printf("bad R_BPF_64_64 relocation offset");;
+                        printf("bad R_BPF_64_64 relocation offset");
                         goto error;
                     }
 
                     if (relo_sym.st_shndx > section_count) {
-                        printf("bad R_BPF_64_64 relocation section index");;
+                        printf("bad R_BPF_64_64 relocation section index");
                         goto error;
                     }
                     section* map = &sections[relo_sym.st_shndx];
                     if (map->shdr->sh_type != SHT_PROGBITS || map->shdr->sh_flags != (SHF_ALLOC | SHF_WRITE)) {
-                        printf("bad R_BPF_64_64 relocation section");;
+                        printf("bad R_BPF_64_64 relocation section");
                         goto error;
                     }
 
                     if (relo_sym.st_size + relo_sym.st_value > map->size) {
-                        printf("bad R_BPF_64_64 size");;
+                        printf("bad R_BPF_64_64 size");
                         goto error;
                     }
 
                     struct ebpf_inst* applies_to_inst2 = applies_to_inst + 1;
                     if (applies_to_inst->opcode != EBPF_OP_LDDW) {
-                        printf("bad R_BPF_64_64 relocation instruction");;
+                        printf("bad R_BPF_64_64 relocation instruction");
                         goto error;
                     }
                     if (relocation.r_offset + sizeof(struct ebpf_inst) * 2 > sections[relo_applies_to_section].size) {
-                        printf("bad R_BPF_64_64 relocation offset");;
+                        printf("bad R_BPF_64_64 relocation offset");
                         goto error;
                     }
 
                     if (!vm->data_relocation_function) {
-                        printf("R_BPF_64_64 data relocation function not set");;
+                        printf("R_BPF_64_64 data relocation function not set");
                         goto error;
                     }
 
@@ -414,7 +424,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                             }
                         }
                         if (!target_function) {
-                            printf("relocated target of a function call does not point to a known function");;
+                            printf("relocated target of a function call does not point to a known function");
                             goto error;
                         }
 
@@ -427,7 +437,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                         //printf("section_name : %s\n",section_name);
                         unsigned int imm = ubpf_lookup_registered_function(vm, section_name);
                         if (imm == -1) {
-                            printf("function '%s' not found", section_name);;
+                            printf("function '%s' not found", section_name);
                             goto error;
                         }
 
@@ -458,7 +468,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
     free(relocated_functions);
 
     if (load_success > 0) {
-        printf("load elf success\n");
+        //printf("load elf success\n");
         load_success = ubpf_load(vm, linked_program, linked_program_size);
     }
     free(linked_program);

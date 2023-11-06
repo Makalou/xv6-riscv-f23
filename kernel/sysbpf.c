@@ -9,8 +9,10 @@
 
 int bpf_load_prog(const char* filename,int size)
 {
-    int h = ubpf_load_elf_ex(&g_ubpf_vm,filename,size,NULL);
-    printf("%d\n",h);
+    //todo: wait until current program finish
+    int h = ubpf_load_elf_ex(&g_ubpf_vm,filename,size,"bpf_entry");
+    if(h==0)
+        current_attach_point = 0;//reset current attach point
     return h;
 }
 
@@ -46,15 +48,18 @@ void bpf_syscall_pre_trace(int syscall_num,int pid)
 {
     if(current_attach_point==1)
     {
-
+        ubpf_exec(&g_ubpf_vm,&syscall_num,sizeof(int),NULL);
     }
 }
 
 int bpf_syscall_pre_filter(int syscall_num,int pid){
     if(current_attach_point==2)
     {
-        if(syscall_num==20)
-            return -1;
+        uint64 ret = 0;
+        //printf("bpf input %d\n",num);
+        ubpf_exec(&g_ubpf_vm,&syscall_num,sizeof(int),&ret);
+        //printf("bpf return value :%d\n",ret);
+        return ret;
     }
     return 0;
 }
