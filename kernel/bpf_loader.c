@@ -102,7 +102,7 @@ int ehdr_check(const Elf64_Ehdr* ehdr)
     }
 
     if (ehdr->e_machine != EM_NONE && ehdr->e_machine != EM_BPF) {
-        printf("wrong machine, expected none or BPF, got %d");
+        printf("wrong machine, expected none or BPF, got %d",ehdr->e_machine);
         return -1;
     }
 
@@ -115,7 +115,7 @@ int ehdr_check(const Elf64_Ehdr* ehdr)
 }
 
 int
-ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const char* main_function_name)
+ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size, const char* main_function_name)
 {
     bounds b = {.base = elf, .size = elf_size};
     void* linked_program = NULL;
@@ -469,7 +469,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
 
     if (load_success > 0) {
         //printf("load elf success\n");
-        load_success = ubpf_load(vm, linked_program, linked_program_size);
+        load_success = ubpf_load(vm,vm_idx, linked_program, linked_program_size);
     }
     free(linked_program);
     return load_success;

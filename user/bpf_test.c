@@ -16,7 +16,7 @@ main(int argc, char *argv[]) {
         bpf(BPF_PROG_LOAD, elf, rb);
         bpf(BPF_PROG_ATTACH, "syscall_pre_filter", 18);
     }else{
-        bpf(BPF_PROG_UNATTACH,"",0);
+        bpf(BPF_PROG_UNATTACH,"syscall_pre_filter",18);
     }
     exit(0);
 }

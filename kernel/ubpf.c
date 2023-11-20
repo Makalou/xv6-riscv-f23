@@ -23,13 +23,11 @@
 #include "defs.h"
 
 // use global variables instead of using malloc
-struct ubpf_vm g_ubpf_vm;
-ext_func g_ext_funcs[MAX_EXT_FUNCS];
-const char* g_ext_func_names[MAX_EXT_FUNCS];
-struct ebpf_inst g_ebpf_inst[UBPF_MAX_INSTS];
-bool g_int_funcs[NUM_INSTS_MAX];
-
-int current_attach_point = 0;
+struct ubpf_vm g_ubpf_vm[MAX_VM_NUM];
+ext_func g_ext_funcs[MAX_VM_NUM * MAX_EXT_FUNCS];
+const char* g_ext_func_names[MAX_VM_NUM * MAX_EXT_FUNCS];
+struct ebpf_inst g_ebpf_inst[MAX_VM_NUM * UBPF_MAX_INSTS];
+bool g_int_funcs[MAX_VM_NUM * NUM_INSTS_MAX];
 
 int
 ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
@@ -67,22 +65,27 @@ ubpf_destroy(struct ubpf_vm* vm)
     //free(vm->ext_func_names);
     vm->ext_func_names = NULL;
     //free(vm);
-    vm = NULL;
+    vm = NULL;//???
 }
 
 struct ubpf_vm*
-ubpf_create(void) {
-    struct ubpf_vm* vm = &g_ubpf_vm;
-    if (vm == NULL) {
+ubpf_create(int* vm_idx) {
+    struct ubpf_vm* vm = NULL;
+    int i = 0;
+    for(vm = g_ubpf_vm;vm->ext_funcs!=NULL && i != MAX_VM_NUM;vm++,i++);
+    if (i == MAX_VM_NUM) {
+        *vm_idx = -1;
         return NULL;
     }
-    vm->ext_funcs = (ext_func **)&g_ext_funcs;
+    vm->ext_funcs = (ext_func **)&g_ext_funcs[i * MAX_EXT_FUNCS];
     if (vm->ext_funcs == NULL) {
         ubpf_destroy(vm);
+        *vm_idx = -1;
         return NULL;
     }
-    vm->ext_func_names = g_ext_func_names;
+    vm->ext_func_names = &g_ext_func_names[i*MAX_EXT_FUNCS];
     if (vm->ext_func_names == NULL) {
+        *vm_idx = -1;
         ubpf_destroy(vm);
         return NULL;
     }
@@ -92,6 +95,7 @@ ubpf_create(void) {
     vm->translate = ubpf_translate_null;
     vm->unwind_stack_extension_index = -1;
     vm->jitted = NULL;
+    *vm_idx = i;
     return vm;
 }
 
@@ -333,7 +337,7 @@ ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
 }
 
 int
-ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len)
+ubpf_load(struct ubpf_vm* vm, int vm_idx,const void* code, uint32_t code_len)
 {
     //const struct ebpf_inst* source_inst = code;
     if (UBPF_STACK_SIZE % sizeof(uint64) != 0) {
@@ -355,13 +359,13 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len)
         return -1;
     }
 
-    vm->insts = g_ebpf_inst;
+    vm->insts = &g_ebpf_inst[vm_idx*UBPF_MAX_INSTS];
     if (vm->insts == NULL) {
         ERR("out of memory");
         return -1;
     }
     vm->num_insts = code_len / sizeof(vm->insts[0]);
-    vm->int_funcs = g_int_funcs;
+    vm->int_funcs = &g_int_funcs[vm_idx * NUM_INSTS_MAX];
     if (!vm->int_funcs) {
         ERR("out of memory");
         return -1;

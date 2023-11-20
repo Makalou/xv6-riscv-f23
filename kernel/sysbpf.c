@@ -8,69 +8,110 @@
 #include "ubpf.h"
 #include "bpf_hooks.h"
 
+int current_vm_idx;
+
 int bpf_load_prog(const char* filename,int size)
 {
     //todo: wait until current program finish
-    int h = ubpf_load_elf_ex(&g_ubpf_vm,filename,size,"bpf_entry");
+    int vm_idx = 0;
+    ubpf_create(&vm_idx);
+    if(vm_idx<0)
+        return -1;
+    int h = ubpf_load_elf_ex(&g_ubpf_vm[0],vm_idx,filename,size,"bpf_entry");
     if(h==0)
-        current_attach_point = 0;//reset current attach point
+        current_vm_idx = vm_idx;//reset current attach point
     return h;
 }
+
+int attached_vm_list[8];
+
+/*
+ *  global variable will be initialized to 0 in C language
+ *  so I think it's convienent to let 0 stands for vm "non-exist"
+ *  therefore the valid vm idx stored in attached_vm_list starts from 1, instead of 0
+ */
 
 int bpf_attach_prog(char* attach_point,int nbytes)
 {
     //todo: wait until current program finish
     if(strncmp(attach_point,"syscall_pre_trace",nbytes)==0){
-        current_attach_point = 1;
+        attached_vm_list[1] = current_vm_idx + 1;
         return 0;
     }
     if(strncmp(attach_point,"syscall_pre_filter",nbytes)==0){
-        current_attach_point = 2;
+        attached_vm_list[2] = current_vm_idx + 1;
         return 0;
     }
     if(strncmp(attach_point,"syscall_post_trace",nbytes)==0){
-        current_attach_point = 3;
+        attached_vm_list[3] = current_vm_idx + 1;
         return 0;
     }
     if(strncmp(attach_point,"syscall_post_filter",nbytes)==0){
-        current_attach_point = 4;
+        attached_vm_list[4] = current_vm_idx + 1;
         return 0;
     }
     if(strncmp(attach_point,"scheduler_preempt_tick",nbytes)==0){
-        current_attach_point = 5;
+        attached_vm_list[5] = current_vm_idx + 1;
         return 0;
     }
     if(strncmp(attach_point,"scheduler_preempt_wakeup",nbytes)==0){
-        current_attach_point = 6;
+        attached_vm_list[6] = current_vm_idx + 1;
         return 0;
     }
     if(strncmp(attach_point,"scheduler_wake_preempt_entity",nbytes)==0){
-        current_attach_point = 7;
+        attached_vm_list[7] = current_vm_idx + 1;
         return 0;
     }
     return -1;
 }
 
-int bpf_unattach_prog()
+int bpf_unattach_prog(char* attach_point,int nbytes)
 {
-    current_attach_point = 0;
+    if(strncmp(attach_point,"syscall_pre_trace",nbytes)==0){
+        attached_vm_list[1] = -1;
+        return 0;
+    }
+    if(strncmp(attach_point,"syscall_pre_filter",nbytes)==0){
+        attached_vm_list[2] = -1;
+        return 0;
+    }
+    if(strncmp(attach_point,"syscall_post_trace",nbytes)==0){
+        attached_vm_list[3] = -1;
+        return 0;
+    }
+    if(strncmp(attach_point,"syscall_post_filter",nbytes)==0){
+        attached_vm_list[4] = -1;
+        return 0;
+    }
+    if(strncmp(attach_point,"scheduler_preempt_tick",nbytes)==0){
+        attached_vm_list[5] = -1;
+        return 0;
+    }
+    if(strncmp(attach_point,"scheduler_preempt_wakeup",nbytes)==0){
+        attached_vm_list[6] = -1;
+        return 0;
+    }
+    if(strncmp(attach_point,"scheduler_wake_preempt_entity",nbytes)==0){
+        attached_vm_list[7] = -1;
+        return 0;
+    }
     return 0;
 }
 
 void bpf_syscall_pre_trace(int syscall_num,int pid)
 {
-    if(current_attach_point==1)
+    if(attached_vm_list[1]>0)
     {
-        ubpf_exec(&g_ubpf_vm,&syscall_num,sizeof(int),NULL);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[1]-1],&syscall_num,sizeof(int),NULL);
     }
 }
 
 int bpf_syscall_pre_filter(int syscall_num,int pid){
-    if(current_attach_point==2)
+    if(attached_vm_list[2]>0)
     {
         uint64 ret = 0;
         //printf("bpf input %d\n",num);
-        ubpf_exec(&g_ubpf_vm,&syscall_num,sizeof(int),&ret);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&syscall_num,sizeof(int),&ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }
@@ -78,16 +119,10 @@ int bpf_syscall_pre_filter(int syscall_num,int pid){
 }
 
 void bpf_syscall_post_trace(int syscall_num,int pid,  int syscall_result){
-    if(current_attach_point==3) {
 
-    }
 }
 
 int bpf_syscall_post_filter(int syscall_num,int pid, int syscall_result){
-    if(current_attach_point==4)
-    {
-
-    }
     return syscall_result;
 }
 
@@ -121,7 +156,7 @@ sys_bpf(void)
         case BPF_PROG_ATTACH:
             return bpf_attach_prog(attr,nbytes);
         case BPF_PROG_UNATTACH:
-            return bpf_unattach_prog();
+            return bpf_unattach_prog(attr,nbytes);
         case BPF_MAP_CREATE:
             break;
         case BPF_MAP_LOOKUP_ELEM:
