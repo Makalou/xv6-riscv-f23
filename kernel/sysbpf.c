@@ -6,6 +6,7 @@
 #include "defs.h"
 #include "bpf.h"
 #include "ubpf.h"
+#include "bpf_hooks.h"
 
 int bpf_load_prog(const char* filename,int size)
 {
@@ -33,6 +34,18 @@ int bpf_attach_prog(char* attach_point,int nbytes)
     }
     if(strncmp(attach_point,"syscall_post_filter",nbytes)==0){
         current_attach_point = 4;
+        return 0;
+    }
+    if(strncmp(attach_point,"scheduler_preempt_tick",nbytes)==0){
+        current_attach_point = 5;
+        return 0;
+    }
+    if(strncmp(attach_point,"scheduler_preempt_wakeup",nbytes)==0){
+        current_attach_point = 6;
+        return 0;
+    }
+    if(strncmp(attach_point,"scheduler_wake_preempt_entity",nbytes)==0){
+        current_attach_point = 7;
         return 0;
     }
     return -1;
@@ -76,6 +89,18 @@ int bpf_syscall_post_filter(int syscall_num,int pid, int syscall_result){
 
     }
     return syscall_result;
+}
+
+int bpf_sch_check_preempt_tick(struct proc* p){
+    return 0;
+}
+
+int bpf_sch_check_preempt_wakeup(struct proc* p){
+    return 0;
+}
+
+int bpf_sch_wake_preempt_entity(struct proc* p){
+    return 0;
 }
 
 uint64

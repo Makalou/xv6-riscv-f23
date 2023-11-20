@@ -24,6 +24,7 @@
 //#include "riscv.h"
 //#include "defs.h"
 
+#define MAX_VM_NUM 8
 #define UBPF_STACK_SIZE 512
 #define UBPF_MAX_CALL_DEPTH 10
 #define MAX_EXT_FUNCS 64
@@ -113,14 +114,6 @@ typedef struct _ebpf_encoded_inst
 
 extern struct ubpf_vm g_ubpf_vm;
 extern int current_attach_point;
-
-void bpf_syscall_pre_trace(int syscall_num,int pid);
-
-int bpf_syscall_pre_filter(int syscall_num,int pid);
-
-int bpf_syscall_post_filter(int syscall_num,int pid,int syscall_result);
-
-void bpf_syscall_post_trace(int syscall_num,int pid,int syscall_result);
 
 unsigned int
 ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name);

@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "bpf_hooks.h"
 
 struct cpu cpus[NCPU];
 
@@ -451,20 +452,32 @@ scheduler(void)
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+      int should_run = 0;
+      should_run = bpf_sch_check_preempt_tick(p);
+      if(should_run!=0){
+          //decide by bpf-scheduler
+          if(should_run>0){
+              p->state = RUNNING;
+              c->proc = p;
+              swtch(&c->context, &p->context);
+              c->proc = 0;
+          }
+      }else{
+          //decide by default-scheduler
+          if(p->state == RUNNABLE) {
+              // Switch to chosen process.  It is the process's job
+              // to release its lock and then reacquire it
+              // before jumping back to us.
+              p->state = RUNNING;
+              c->proc = p;
+              swtch(&c->context, &p->context);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+              // Process is done running for now.
+              // It should have changed its p->state before coming back.
+              c->proc = 0;
+          }
       }
       release(&p->lock);
     }
@@ -504,6 +517,7 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+  printf("yield %d.",p->pid);
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
