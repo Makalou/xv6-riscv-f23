@@ -131,6 +131,70 @@ mbufq_init(struct mbufq *q)
   q->head = 0;
 }
 
+// Function to calculate the UDP checksum
+unsigned int net_checksum_add(int len, const char *buf)
+{
+  unsigned int sum = 0;
+  int i;
+  for (i = 0; i < len; i++) {
+	  if (i & 1)
+	    sum += (uint32_t)buf[i];
+	  else
+	    sum += (uint32_t)buf[i] << 8;
+  }
+  return sum;
+}
+
+unsigned short net_checksum_finish(unsigned int sum)
+{
+  printf("sum before loop:%d\n", sum);
+  while (sum>>16) {
+	  sum = (sum & 0xFFFF)+(sum >> 16);
+  }
+  unsigned short ans = (unsigned short)(~sum);
+  printf("sum after loop:%d, %d\n", sum, ans);
+  return ans;
+}
+
+unsigned short net_checksum_tcpudp(uint16_t length, uint16_t proto,
+                             const char *addrs, const char *buf)
+{
+    unsigned int sum = 0;
+
+    sum += net_checksum_add(length, buf);         // payload
+    printf("sum after net_checksum_add: %d \n", sum);
+    sum += net_checksum_add(8, addrs);            // src + dst address
+    printf("sum after net_checksum_add2 : %d \n", sum);
+    sum += proto + length;                        // protocol & length
+    return net_checksum_finish(sum);
+}
+
+unsigned short calculateUDPChecksum(char *data, unsigned short length) {
+  int hlen, plen, proto, csum_offset;
+  unsigned short csum;
+  hlen = (data[14] & 0x0f) * 4;
+  plen = (data[16] << 8 | data[17]) - hlen;
+  proto = data[23];
+  switch (proto) {
+    case IPPROTO_UDP:
+      csum_offset = 6;
+      break;
+    case IPPROTO_TCP:
+      csum_offset = 16;
+      break;
+    default:
+      return 0;
+  }
+  if (plen < csum_offset + 2) {
+    return 0;
+  }
+  printf("plen: %d hlen: %d csum_offset:%d \n", plen, hlen, csum_offset);
+  data[14+hlen+csum_offset] = 0;
+  data[14+hlen+csum_offset+1] = 0;
+  csum = net_checksum_tcpudp(plen, proto, data+14+12, data+14+hlen);
+  return csum;
+}
+
 // This code is lifted from FreeBSD's ping.c, and is copyright by the Regents
 // of the University of California.
 static unsigned short
@@ -298,14 +362,15 @@ net_rx_udp(struct mbuf *m, uint16 len, struct ip *iphdr)
   struct udp *udphdr;
   uint32 sip;
   uint16 sport, dport;
+  
 
   udphdr = mbufpullhdr(m, *udphdr);
   if (!udphdr) {
     goto fail;
   }
-
   // TODO: validate UDP checksum
-
+  //printf("udp check sum:%d\n", udphdr->sum);
+  //printf("udp content: %s", (m->head));
   // validate lengths reported in headers
   if (ntohs(udphdr->ulen) != len) {
     goto fail;
@@ -373,6 +438,11 @@ void net_rx(struct mbuf *m)
 {
   struct eth *ethhdr;
   uint16 type;
+  char tmp[m->len];
+  memmove(tmp, m->head, m->len);
+  unsigned short udpChecksum = calculateUDPChecksum(tmp, m->len);
+  udpChecksum = ntohs(udpChecksum);
+  //printf("calculated checksum: %d\n", udpChecksum);
 
   ethhdr = mbufpullhdr(m, *ethhdr);
   if (!ethhdr) {

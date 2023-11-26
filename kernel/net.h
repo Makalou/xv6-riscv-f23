@@ -83,9 +83,9 @@ static inline uint32 bswapl(uint32 val)
 
 // an Ethernet packet header (start of the packet).
 struct eth {
-  uint8  dhost[ETHADDR_LEN];
-  uint8  shost[ETHADDR_LEN];
-  uint16 type;
+  uint8  dhost[ETHADDR_LEN];  //0
+  uint8  shost[ETHADDR_LEN];  //6
+  uint16 type;  //12
 } __attribute__((packed));
 
 
@@ -94,15 +94,15 @@ struct eth {
 
 // an IP packet header (comes after an Ethernet header).
 struct ip {
-  uint8  ip_vhl; // version << 4 | header length >> 2
-  uint8  ip_tos; // type of service
-  uint16 ip_len; // total length
-  uint16 ip_id;  // identification
-  uint16 ip_off; // fragment offset field
-  uint8  ip_ttl; // time to live
-  uint8  ip_p;   // protocol
-  uint16 ip_sum; // checksum
-  uint32 ip_src, ip_dst;
+  uint8  ip_vhl; // version << 4 | header length >> 2  // 14
+  uint8  ip_tos; // type of service  //15
+  uint16 ip_len; // total length  //16
+  uint16 ip_id;  // identification  //18
+  uint16 ip_off; // fragment offset field  //20
+  uint8  ip_ttl; // time to live  //22
+  uint8  ip_p;   // protocol  //23
+  uint16 ip_sum; // checksum  //24
+  uint32 ip_src, ip_dst;  // 26
 };
 
 #define IPPROTO_ICMP 1  // Control message protocol
@@ -115,10 +115,10 @@ struct ip {
 
 // a UDP packet header (comes after an IP header).
 struct udp {
-  uint16 sport; // source port
-  uint16 dport; // destination port
-  uint16 ulen;  // length, including udp header, not including IP header
-  uint16 sum;   // checksum
+  uint16 sport; // source port  //30
+  uint16 dport; // destination port  //32
+  uint16 ulen;  // length, including udp header, not including IP header  //34
+  uint16 sum;   // checksum  //36
 };
 
 // an ARP packet (comes after an Ethernet header).
