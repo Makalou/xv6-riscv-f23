@@ -148,7 +148,7 @@ syscall(void)
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
-    bpf_syscall_pre_trace(num,p->pid);
+    bpf_syscall_pre_trace(num, p->pid);
     if(bpf_syscall_pre_filter(num,p->pid)<0){
         printf("%d %s: unpermitted sys call\n",
                p->pid, p->name, num);

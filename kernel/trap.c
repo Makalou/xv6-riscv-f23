@@ -193,7 +193,7 @@ devintr()
      }
 #ifdef LAB_NET
     else if(irq == E1000_IRQ){
-      printf("Recieve E1000_IRQ\n");
+      //printf("Recieve E1000_IRQ\n");
       e1000_intr();
     }
 #endif

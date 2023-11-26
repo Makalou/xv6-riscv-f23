@@ -21,12 +21,12 @@ ping(uint16 sport, uint16 dport, int attempts)
 
   // you can send a UDP packet to any Internet address
   // by using a different dst.
-  printf("Will call connect\n");
+  //printf("Will call connect\n");
   if((fd = connect(dst, sport, dport)) < 0){
     fprintf(2, "ping: connect() failed\n");
     exit(1);
   } else {
-    printf("success to connect\n");
+    //printf("success to connect\n");
   }
 
   for(int i = 0; i < attempts; i++) {
@@ -34,7 +34,7 @@ ping(uint16 sport, uint16 dport, int attempts)
       fprintf(2, "ping: send() failed\n");
       exit(1);
     } else {
-      printf("success to write\n");
+      //printf("success to write\n");
     }
   }
 
@@ -44,7 +44,7 @@ ping(uint16 sport, uint16 dport, int attempts)
     fprintf(2, "ping: recv() failed\n");
     exit(1);
   } else {
-    printf("success to ping: recv()\n");
+    //printf("success to ping: recv()\n");
   }
 
   close(fd);

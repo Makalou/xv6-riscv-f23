@@ -518,12 +518,12 @@ sys_connect(void)
   argint(1, (int*)&lport);
   argint(2, (int*)&rport);
 
-  printf("in sys_connect\n");
+  //printf("in sys_connect\n");
 
-  if(sockalloc(&f, raddr, lport, rport) < 0) {
+  if (sockalloc(&f, raddr, lport, rport) < 0) {
     return -1;
   }
-  if((fd=fdalloc(f)) < 0){
+  if ((fd=fdalloc(f)) < 0) {
     fileclose(f);
     return -1;
   }

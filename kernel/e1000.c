@@ -143,7 +143,7 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
-  printf("in e1000_recv\n");
+  //printf("in e1000_recv\n");
   acquire(&e1000_lockrx);
   int i = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
   while (rx_ring[i].status & E1000_RXD_STAT_DD) {
@@ -160,7 +160,7 @@ e1000_recv(void)
     i = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
   }
   release(&e1000_lockrx);
-  printf("finish e1000_recv\n");
+  //printf("finish e1000_recv\n");
 }
 
 void
@@ -170,6 +170,6 @@ e1000_intr(void)
   // without this the e1000 won't raise any
   // further interrupts.
   regs[E1000_ICR] = 0xffffffff;
-  printf("In e1000_intr\n");
+  //printf("In e1000_intr\n");
   e1000_recv();
 }

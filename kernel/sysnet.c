@@ -60,7 +60,7 @@ sockalloc(struct file **f, uint32 raddr, uint16 lport, uint16 rport)
   // add to list of sockets
   acquire(&lock);
   pos = sockets;
-  printf("in sockalloc\n");
+  //printf("in sockalloc\n");
   while (pos) {
     if (pos->raddr == raddr &&
         pos->lport == lport &&
@@ -73,7 +73,7 @@ sockalloc(struct file **f, uint32 raddr, uint16 lport, uint16 rport)
   si->next = sockets;
   sockets = si;
   release(&lock);
-  printf("sockalloc return\n");
+  //printf("sockalloc return\n");
   return 0;
 
 bad:
@@ -120,14 +120,14 @@ sockread(struct sock *si, uint64 addr, int n)
   struct proc *pr = myproc();
   struct mbuf *m;
   int len;
-  printf("in sock read\n");
+  //printf("in sock read\n");
   acquire(&si->lock);
-  printf("acquire lock\n");
+  //printf("acquire lock\n");
   while (mbufq_empty(&si->rxq) && !pr->killed) {
-    printf("mbufq_empty\n");
+    //printf("mbufq_empty\n");
     sleep(&si->rxq, &si->lock);
   }
-  printf("mbufq not empty\n");
+  //printf("mbufq not empty\n");
   if (pr->killed) {
     release(&si->lock);
     return -1;
@@ -144,7 +144,7 @@ sockread(struct sock *si, uint64 addr, int n)
     return -1;
   }
   mbuffree(m);
-  printf("sock read return\n");
+  //printf("sock read return\n");
   return len;
 }
 

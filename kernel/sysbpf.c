@@ -15,11 +15,15 @@ int bpf_load_prog(const char* filename,int size)
     //todo: wait until current program finish
     int vm_idx = 0;
     ubpf_create(&vm_idx);
-    if(vm_idx<0)
+    if (vm_idx < 0) {
         return -1;
+    }
+    // The return value of ubpf_load_elf_ex is 1 or -1, 1 stands for success
+    // -1 stands for failure.
     int h = ubpf_load_elf_ex(&g_ubpf_vm[0],vm_idx,filename,size,"bpf_entry");
-    if(h==0)
-        current_vm_idx = vm_idx;//reset current attach point
+    if (h == 1) {
+        current_vm_idx = vm_idx;//set current attach point
+    }
     return h;
 }
 
@@ -100,9 +104,8 @@ int bpf_unattach_prog(char* attach_point,int nbytes)
 
 void bpf_syscall_pre_trace(int syscall_num,int pid)
 {
-    if(attached_vm_list[1]>0)
-    {
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[1]-1],&syscall_num,sizeof(int),NULL);
+    if (attached_vm_list[1] > 0) {
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[1] - 1], &syscall_num, sizeof(int), NULL);
     }
 }
 
@@ -141,15 +144,16 @@ int bpf_sch_wake_preempt_entity(struct proc* p){
 uint64
 sys_bpf(void)
 {
-    int ocmd,nbytes;
-    argint(0,&ocmd);
-    argint(2,&nbytes);
+    int ocmd, nbytes;
+    argint(0, &ocmd);
+    argint(2, &nbytes);
     uint64 addr = 0;
-    argaddr(1,&addr);
+    argaddr(1, &addr);
     struct proc *p = myproc();
     char attr[1024];
-    if(copyin(p->pagetable, attr, addr, nbytes) < 0)
+    if (copyin(p->pagetable, attr, addr, nbytes) < 0) {
         return -1;
+    }
     switch (ocmd) {
         case BPF_PROG_LOAD:
             return bpf_load_prog(attr,nbytes);
