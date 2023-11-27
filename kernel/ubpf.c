@@ -72,7 +72,7 @@ struct ubpf_vm*
 ubpf_create(int* vm_idx) {
     struct ubpf_vm* vm = NULL;
     int i = 0;
-    for(vm = g_ubpf_vm;vm->ext_funcs!=NULL && i != MAX_VM_NUM;vm++,i++);
+    for (vm = g_ubpf_vm; vm->ext_funcs != NULL && i != MAX_VM_NUM; vm++, i++);
     if (i == MAX_VM_NUM) {
         *vm_idx = -1;
         return NULL;
@@ -83,7 +83,7 @@ ubpf_create(int* vm_idx) {
         *vm_idx = -1;
         return NULL;
     }
-    vm->ext_func_names = &g_ext_func_names[i*MAX_EXT_FUNCS];
+    vm->ext_func_names = &g_ext_func_names[i * MAX_EXT_FUNCS];
     if (vm->ext_func_names == NULL) {
         *vm_idx = -1;
         ubpf_destroy(vm);

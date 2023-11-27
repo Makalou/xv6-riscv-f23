@@ -1,3 +1,7 @@
+# To compile and run with a lab solution, set the lab name in conf/lab.mk
+# (e.g., LAB=net). 
+-include lab.mk
+
 K=kernel
 U=user
 
@@ -33,6 +37,14 @@ OBJS = \
   $K/bpf_loader.o \
   $K/sysbpf.o \
 
+ifeq ($(LAB),net)
+OBJS += \
+	$K/e1000.o \
+	$K/net.o \
+	$K/sysnet.o \
+	$K/pci.o
+endif
+
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
 #TOOLPREFIX = 
@@ -60,11 +72,22 @@ OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
 CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+
+ifdef LAB
+LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
+XCFLAGS += -DSOL_$(LABUPPER) -DLAB_$(LABUPPER)
+endif
+
+CFLAGS += $(XCFLAGS)
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+
+ifeq ($(LAB),net)
+CFLAGS += -DNET_TESTS_PORT=$(SERVERPORT)
+endif
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
@@ -80,6 +103,11 @@ $K/kernel: $(OBJS) $K/kernel.ld $U/initcode
 	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
+
+$(OBJS): EXTRAFLAG := $(KCSANFLAG)
+
+$K/%.o: $K/%.c
+	$(CC) $(CFLAGS) $(EXTRAFLAG) -c -o $@ $<
 
 $U/initcode: $U/initcode.S
 	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/initcode.S -o $U/initcode.o
@@ -110,7 +138,7 @@ $U/_forktest: $U/forktest.o $(ULIB)
 	$(OBJDUMP) -S $U/_forktest > $U/forktest.asm
 
 mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
-	gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
+	gcc $(XCFLAGS) -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
@@ -136,9 +164,15 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_bpf_test\
+	$U/_netPFTest\
 
-fs.img: mkfs/mkfs README $(UPROGS) prog.bpf.o
-	mkfs/mkfs fs.img README $(UPROGS) prog.bpf.o
+ifeq ($(LAB),net)
+UPROGS += \
+	$U/_nettests
+endif
+
+fs.img: mkfs/mkfs README $(UPROGS) prog.bpf.o netPF.bpf.o
+	mkfs/mkfs fs.img README $(UPROGS) prog.bpf.o netPF.bpf.o
 
 -include kernel/*.d user/*.d
 
@@ -160,10 +194,17 @@ ifndef CPUS
 CPUS := 3
 endif
 
+FWDPORT = $(shell expr `id -u` % 5000 + 25999)
+
 QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+ifeq ($(LAB),net)
+QEMUOPTS += -netdev user,id=net0,hostfwd=udp::$(FWDPORT)-:2000 -object filter-dump,id=net0,netdev=net0,file=packets.pcap
+QEMUOPTS += -device e1000,netdev=net0,bus=pcie.0
+endif
 
 qemu: $K/kernel fs.img
 	$(QEMU) $(QEMUOPTS)
@@ -175,3 +216,12 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
+ifeq ($(LAB),net)
+# try to generate a unique port for the echo server
+SERVERPORT = $(shell expr `id -u` % 5000 + 25099)
+server:
+	python3 server.py $(SERVERPORT)
+
+ping:
+	python3 ping.py $(FWDPORT)
+endif

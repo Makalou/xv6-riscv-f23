@@ -105,6 +105,10 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_bpf(void);
 
+#ifdef LAB_NET
+extern uint64 sys_connect(void);
+#endif
+
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
@@ -130,7 +134,9 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_bpf]     sys_bpf,
+[SYS_connect] sys_connect,
 };
+
 
 void
 syscall(void)
@@ -142,7 +148,7 @@ syscall(void)
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
-    bpf_syscall_pre_trace(num,p->pid);
+    bpf_syscall_pre_trace(num, p->pid);
     if(bpf_syscall_pre_filter(num,p->pid)<0){
         printf("%d %s: unpermitted sys call\n",
                p->pid, p->name, num);
