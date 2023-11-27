@@ -470,7 +470,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
 
     if (load_success > 0) {
         //printf("load elf success\n");
-        load_success = ubpf_load(vm,vm_idx, linked_program, linked_program_size);
+        load_success = ubpf_load(vm, vm_idx, linked_program, linked_program_size);
     }
     free(linked_program);
     return load_success;

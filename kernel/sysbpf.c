@@ -9,6 +9,7 @@
 #include "bpf_hooks.h"
 
 int current_vm_idx;
+int loaded_elf_cnt;
 
 int bpf_load_prog(const char* filename,int size)
 {
@@ -18,16 +19,18 @@ int bpf_load_prog(const char* filename,int size)
     if (vm_idx < 0) {
         return -1;
     }
-    // The return value of ubpf_load_elf_ex is 1 or -1, 1 stands for success
-    // -1 stands for failure.
-    int h = ubpf_load_elf_ex(&g_ubpf_vm[0],vm_idx,filename,size,"bpf_entry");
-    if (h == 1) {
+    // Support adding multiple elf files.
+    int h = ubpf_load_elf_ex(&g_ubpf_vm[loaded_elf_cnt], vm_idx, filename, size, "bpf_entry");
+    if (h == 0) {
+        loaded_elf_cnt++;
         current_vm_idx = vm_idx;//set current attach point
+
     }
+    printf("current_vm_idx: %d h:%d\n", current_vm_idx, h);
     return h;
 }
 
-int attached_vm_list[8];
+int attached_vm_list[9];
 
 /*
  *  global variable will be initialized to 0 in C language
@@ -66,6 +69,10 @@ int bpf_attach_prog(char* attach_point,int nbytes)
         attached_vm_list[7] = current_vm_idx + 1;
         return 0;
     }
+    if (strncmp(attach_point, "enable_udp_checksum_filter", nbytes) == 0) {
+        attached_vm_list[8] = current_vm_idx + 1;
+        return 0;
+    }
     return -1;
 }
 
@@ -97,6 +104,10 @@ int bpf_unattach_prog(char* attach_point,int nbytes)
     }
     if(strncmp(attach_point,"scheduler_wake_preempt_entity",nbytes)==0){
         attached_vm_list[7] = -1;
+        return 0;
+    }
+    if (strncmp(attach_point, "enable_udp_checksum_filter", nbytes) == 0) {
+        attached_vm_list[8] = -1;
         return 0;
     }
     return 0;
@@ -138,6 +149,19 @@ int bpf_sch_check_preempt_wakeup(struct proc* p){
 }
 
 int bpf_sch_wake_preempt_entity(struct proc* p){
+    return 0;
+}
+
+int bpf_enable_udp_checksum_filter() {
+    if (attached_vm_list[8] > 0) {
+        uint64 ret = 0;
+        //printf("bpf input %d\n",num);
+        char mem[16];
+        int len = 16;
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[8]-1], mem, len, &ret);
+        //printf("bpf return value :%d\n",ret);
+        return ret;
+    }
     return 0;
 }
 

@@ -164,14 +164,15 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_bpf_test\
+	$U/_netPFTest\
 
 ifeq ($(LAB),net)
 UPROGS += \
 	$U/_nettests
 endif
 
-fs.img: mkfs/mkfs README $(UPROGS) prog.bpf.o
-	mkfs/mkfs fs.img README $(UPROGS) prog.bpf.o
+fs.img: mkfs/mkfs README $(UPROGS) prog.bpf.o netPF.bpf.o
+	mkfs/mkfs fs.img README $(UPROGS) prog.bpf.o netPF.bpf.o
 
 -include kernel/*.d user/*.d
 

@@ -43,4 +43,11 @@ int bpf_sch_check_preempt_wakeup(struct proc* p);
  */
 int bpf_sch_wake_preempt_entity(struct proc* p);
 
+/*
+return value:
+  1: enable udp checksum
+  0: disable udp checksum
+*/
+int bpf_enable_udp_checksum_filter();
+
 #endif //XV6_RISCV_F23_BPF_HOOKS_H

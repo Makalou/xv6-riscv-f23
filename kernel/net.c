@@ -10,6 +10,7 @@
 #include "proc.h"
 #include "net.h"
 #include "defs.h"
+#include "bpf_hooks.h"
 
 static uint32 local_ip = MAKE_IP_ADDR(10, 0, 2, 15); // qemu's idea of the guest IP
 static uint8 local_mac[ETHADDR_LEN] = { 0x52, 0x54, 0x00, 0x12, 0x34, 0x56 };
@@ -147,12 +148,12 @@ unsigned int net_checksum_add(int len, const char *buf)
 
 unsigned short net_checksum_finish(unsigned int sum)
 {
-  printf("sum before loop:%d\n", sum);
+  //printf("sum before loop:%d\n", sum);
   while (sum>>16) {
 	  sum = (sum & 0xFFFF)+(sum >> 16);
   }
   unsigned short ans = (unsigned short)(~sum);
-  printf("sum after loop:%d, %d\n", sum, ans);
+  //printf("sum after loop:%d, %d\n", sum, ans);
   return ans;
 }
 
@@ -162,9 +163,9 @@ unsigned short net_checksum_tcpudp(uint16_t length, uint16_t proto,
     unsigned int sum = 0;
 
     sum += net_checksum_add(length, buf);         // payload
-    printf("sum after net_checksum_add: %d \n", sum);
+    //printf("sum after net_checksum_add: %d \n", sum);
     sum += net_checksum_add(8, addrs);            // src + dst address
-    printf("sum after net_checksum_add2 : %d \n", sum);
+    //printf("sum after net_checksum_add2 : %d \n", sum);
     sum += proto + length;                        // protocol & length
     return net_checksum_finish(sum);
 }
@@ -188,7 +189,7 @@ unsigned short calculateUDPChecksum(char *data, unsigned short length) {
   if (plen < csum_offset + 2) {
     return 0;
   }
-  printf("plen: %d hlen: %d csum_offset:%d \n", plen, hlen, csum_offset);
+  //printf("plen: %d hlen: %d csum_offset:%d \n", plen, hlen, csum_offset);
   data[14+hlen+csum_offset] = 0;
   data[14+hlen+csum_offset+1] = 0;
   csum = net_checksum_tcpudp(plen, proto, data+14+12, data+14+hlen);
@@ -357,7 +358,8 @@ done:
 
 // receives a UDP packet
 static void
-net_rx_udp(struct mbuf *m, uint16 len, struct ip *iphdr)
+net_rx_udp(struct mbuf *m, uint16 len, struct ip *iphdr, unsigned short udp_checksum, \
+    char udp_checksum_flag)
 {
   struct udp *udphdr;
   uint32 sip;
@@ -366,6 +368,10 @@ net_rx_udp(struct mbuf *m, uint16 len, struct ip *iphdr)
 
   udphdr = mbufpullhdr(m, *udphdr);
   if (!udphdr) {
+    goto fail;
+  }
+  if (udp_checksum_flag && udp_checksum != udphdr->sum) {
+    printf("calculated upd checksum is not equal to the check sum in udp header!\n");
     goto fail;
   }
   // TODO: validate UDP checksum
@@ -395,7 +401,7 @@ fail:
 
 // receives an IP packet
 static void
-net_rx_ip(struct mbuf *m)
+net_rx_ip(struct mbuf *m, unsigned short udp_checksum, unsigned char udp_checksum_flag)
 {
   struct ip *iphdr;
   uint16 len;
@@ -425,7 +431,7 @@ net_rx_ip(struct mbuf *m)
     goto fail;
 
   len = ntohs(iphdr->ip_len) - sizeof(*iphdr);
-  net_rx_udp(m, len, iphdr);
+  net_rx_udp(m, len, iphdr, udp_checksum, udp_checksum_flag);
   return;
 
 fail:
@@ -440,9 +446,15 @@ void net_rx(struct mbuf *m)
   uint16 type;
   char tmp[m->len];
   memmove(tmp, m->head, m->len);
-  unsigned short udpChecksum = calculateUDPChecksum(tmp, m->len);
-  udpChecksum = ntohs(udpChecksum);
-  //printf("calculated checksum: %d\n", udpChecksum);
+  unsigned short udpChecksum = 0;
+  unsigned char udpChecksumFlag = 0;
+  if (bpf_enable_udp_checksum_filter()) {
+    printf("enable_udp_checksum_filter \n");
+    udpChecksum = calculateUDPChecksum(tmp, m->len);
+    udpChecksum = ntohs(udpChecksum);
+    udpChecksumFlag = 1;
+    //printf("calculated checksum: %d\n", udpChecksum);
+  }
 
   ethhdr = mbufpullhdr(m, *ethhdr);
   if (!ethhdr) {
@@ -452,7 +464,7 @@ void net_rx(struct mbuf *m)
 
   type = ntohs(ethhdr->type);
   if (type == ETHTYPE_IP) {
-    net_rx_ip(m);
+    net_rx_ip(m, udpChecksum, udpChecksumFlag);
   }
   else if (type == ETHTYPE_ARP) {
     net_rx_arp(m);
