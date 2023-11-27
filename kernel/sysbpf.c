@@ -17,7 +17,7 @@ int bpf_load_prog(const char* filename,int size)
     ubpf_create(&vm_idx);
     if(vm_idx<0)
         return -1;
-    int h = ubpf_load_elf_ex(&g_ubpf_vm[0],vm_idx,filename,size,"bpf_entry");
+    int h = ubpf_load_elf_ex(g_ubpf_vm,vm_idx,filename,size,"bpf_entry");
     if(h==0)
         current_vm_idx = vm_idx;//reset current attach point
     return h;
@@ -118,7 +118,7 @@ int bpf_syscall_pre_filter(int syscall_num,int pid){
     return 0;
 }
 
-void bpf_syscall_post_trace(int syscall_num,int pid,  int syscall_result){
+void bpf_syscall_post_trace(int syscall_num,int pid, int syscall_result){
 
 }
 
@@ -127,14 +127,26 @@ int bpf_syscall_post_filter(int syscall_num,int pid, int syscall_result){
 }
 
 int bpf_sch_check_preempt_tick(struct proc* p){
+    if(attached_vm_list[5]>0)
+    {
+
+    }
     return 0;
 }
 
 int bpf_sch_check_preempt_wakeup(struct proc* p){
+    if(attached_vm_list[6]>0)
+    {
+
+    }
     return 0;
 }
 
 int bpf_sch_wake_preempt_entity(struct proc* p){
+    if(attached_vm_list[7]>0)
+    {
+
+    }
     return 0;
 }
 
