@@ -5,13 +5,13 @@
 #ifndef XV6_RISCV_F23_BPF_HOOKS_H
 #define XV6_RISCV_F23_BPF_HOOKS_H
 
-void bpf_syscall_pre_trace(int syscall_num,int pid);
+void bpf_syscall_pre_trace(struct proc* p);
 
-int bpf_syscall_pre_filter(int syscall_num,int pid);
+int bpf_syscall_pre_filter(struct proc* p);
 
-int bpf_syscall_post_filter(int syscall_num,int pid,int syscall_result);
+int bpf_syscall_post_filter(struct proc* p);
 
-void bpf_syscall_post_trace(int syscall_num,int pid,int syscall_result);
+void bpf_syscall_post_trace(struct proc* p);
 
 /*
  *  invoked during regular preempt tick.

@@ -1,3 +1,6 @@
+#ifndef XV6_RISCV_F23_TYPES_H
+#define XV6_RISCV_F23_TYPES_H
+
 typedef unsigned int   uint;
 typedef unsigned short ushort;
 typedef unsigned char  uchar;
@@ -19,3 +22,5 @@ typedef unsigned long size_t;
 
 typedef short int16_t;
 typedef int int32_t;
+
+#endif

@@ -7,6 +7,7 @@
 #include "bpf.h"
 #include "ubpf.h"
 #include "bpf_hooks.h"
+#include "bpf_args.h"
 
 int current_vm_idx;
 
@@ -118,31 +119,49 @@ int bpf_unattach_prog(char* attach_point,int nbytes)
     return 0;
 }
 
-void bpf_syscall_pre_trace(int syscall_num,int pid)
+void bpf_syscall_pre_trace(struct proc* p)
 {
     if (attached_vm_list[1] > 0) {
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[1] - 1], &syscall_num, sizeof(int), NULL);
+        struct bpf_syscall_arg arg;
+        fill_bpf_syscall_arg(&arg,p);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[1] - 1], &arg, sizeof(struct bpf_syscall_arg), NULL);
     }
 }
 
-int bpf_syscall_pre_filter(int syscall_num,int pid){
+int bpf_syscall_pre_filter(struct proc* p){
     if(attached_vm_list[2]>0)
     {
         uint64 ret = 0;
-        //printf("bpf input %d\n",num);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&syscall_num,sizeof(int),&ret);
+        struct bpf_syscall_arg arg;
+        fill_bpf_syscall_arg(&arg,p);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }
     return 0;
 }
 
-void bpf_syscall_post_trace(int syscall_num,int pid, int syscall_result){
-
+void bpf_syscall_post_trace(struct proc* p){
+    if(attached_vm_list[3]>0)
+    {
+        struct bpf_syscall_arg arg;
+        fill_bpf_syscall_arg(&arg,p);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),NULL);
+        //printf("bpf return value :%d\n",ret);
+    }
 }
 
-int bpf_syscall_post_filter(int syscall_num,int pid, int syscall_result) {
-    return syscall_result;
+int bpf_syscall_post_filter(struct proc* p) {
+    if(attached_vm_list[4]>0)
+    {
+        uint64 ret = 0;
+        struct bpf_syscall_arg arg;
+        fill_bpf_syscall_arg(&arg,p);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
+        //printf("bpf return value :%d\n",ret);
+        return ret;
+    }
+    return p->trapframe->a0;
 }
 
 int bpf_sch_check_preempt_tick(struct proc* p){

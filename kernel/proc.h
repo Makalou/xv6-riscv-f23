@@ -1,3 +1,6 @@
+#ifndef XV6_RISCV_F23_PROC_H
+#define XV6_RISCV_F23_PROC_H
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -106,3 +109,5 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 };
+
+#endif

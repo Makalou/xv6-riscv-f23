@@ -7,7 +7,9 @@
 #include "syscall.h"
 #include "defs.h"
 
+#include "bpf_args.h"
 #include "bpf_hooks.h"
+
 
 // Fetch the uint64 at addr from the current process.
 int
@@ -150,17 +152,16 @@ syscall(void)
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
-    bpf_syscall_pre_trace(num, p->pid);
-    if(bpf_syscall_pre_filter(num,p->pid)<0){
+    bpf_syscall_pre_trace(p);
+    if(bpf_syscall_pre_filter(p)<0){
         printf("%d %s: unpermitted sys call\n",
                p->pid, p->name, num);
         p->trapframe->a0 = -1;
         return;
     }
-    int result = syscalls[num]();
-    result = bpf_syscall_post_filter(num,p->pid,result);
-    p->trapframe->a0 = result;
-    bpf_syscall_post_trace(num,p->pid,result);
+    p->trapframe->a0 = syscalls[num]();
+    p->trapframe->a0 = bpf_syscall_post_filter(p);
+    bpf_syscall_post_trace(p);
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);

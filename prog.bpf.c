@@ -1,10 +1,11 @@
 #include "kernel/syscall.h"
+#include "kernel/bpf_args.h"
 
 int bpf_entry(void* mem, int size)
 {
-    int num = *(int*)mem;
+    EXTRACT_ARG(mem,bpf_syscall_arg);
 
-    if(num == SYS_mkdir){
+    if(arg->a7 == SYS_mkdir){
         return -1;
     }
 
