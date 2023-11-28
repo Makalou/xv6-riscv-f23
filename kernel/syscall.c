@@ -104,6 +104,7 @@ extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_bpf(void);
+extern uint64 sys_chpr(void);
 
 #ifdef LAB_NET
 extern uint64 sys_connect(void);
@@ -135,6 +136,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_bpf]     sys_bpf,
 [SYS_connect] sys_connect,
+[SYS_chpr]    sys_chpr
 };
 
 

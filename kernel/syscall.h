@@ -22,3 +22,4 @@
 #define SYS_close  21
 #define SYS_bpf    22
 #define SYS_connect   23
+#define SYS_chpr   24

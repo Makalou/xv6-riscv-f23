@@ -89,3 +89,13 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+//change the priority of process
+uint64
+sys_chpr(void)
+{
+    int pid,prior;
+    argint(0, &pid);
+    argint(1,&prior);
+    return chpr(pid,prior);
+}

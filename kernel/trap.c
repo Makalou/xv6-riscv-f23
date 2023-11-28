@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "bpf_hooks.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -78,7 +79,12 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
-    yield();
+  {
+      int should_yield = bpf_sch_check_preempt_tick(p);
+      if(should_yield==0 || should_yield ==1){
+          yield();
+      }
+  }
 
   usertrapret();
 }
@@ -152,7 +158,12 @@ kerneltrap()
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
-    yield();
+  {
+      int should_yield = bpf_sch_check_preempt_tick(myproc());
+      if(should_yield==0 || should_yield ==1){
+          yield();
+      }
+  }
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.

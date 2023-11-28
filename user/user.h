@@ -26,6 +26,7 @@ int uptime(void);
 int connect(uint32, uint16, uint16);
 #endif
 int bpf(int,char*,int);
+int chpr(int,int);
 
 // ulib.c
 int stat(const char*, struct stat*);

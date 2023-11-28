@@ -124,6 +124,6 @@ int ubpf_load(struct ubpf_vm*, int i,const void* ,uint32_t);
 int ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_len, const char* main_section_name);
 
 int
-ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64* bpf_return_value);
+ubpf_exec(const struct ubpf_vm* vm,void* mem, size_t mem_len, uint64* bpf_return_value);
 
 #endif

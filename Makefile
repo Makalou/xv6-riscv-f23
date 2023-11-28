@@ -165,14 +165,15 @@ UPROGS=\
 	$U/_zombie\
 	$U/_bpf_test\
 	$U/_netPFTest\
+	$U/_bpf_sched_test\
 
 ifeq ($(LAB),net)
 UPROGS += \
 	$U/_nettests
 endif
 
-fs.img: mkfs/mkfs README $(UPROGS) prog.bpf.o netPF.bpf.o
-	mkfs/mkfs fs.img README $(UPROGS) prog.bpf.o netPF.bpf.o
+fs.img: mkfs/mkfs README $(UPROGS) prog.bpf.o netPF.bpf.o fcfs_spt.bpf.o fcfs_run.bpf.o pq_run.bpf.o
+	mkfs/mkfs fs.img README $(UPROGS) prog.bpf.o netPF.bpf.o fcfs_spt.bpf.o fcfs_run.bpf.o pq_run.bpf.o
 
 -include kernel/*.d user/*.d
 

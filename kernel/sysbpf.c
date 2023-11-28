@@ -9,7 +9,6 @@
 #include "bpf_hooks.h"
 
 int current_vm_idx;
-int loaded_elf_cnt;
 
 int bpf_load_prog(const char* filename,int size)
 {
@@ -20,17 +19,15 @@ int bpf_load_prog(const char* filename,int size)
         return -1;
     }
     // Support adding multiple elf files.
-    int h = ubpf_load_elf_ex(&g_ubpf_vm[loaded_elf_cnt], vm_idx, filename, size, "bpf_entry");
+    int h = ubpf_load_elf_ex(&g_ubpf_vm[vm_idx], vm_idx, filename, size, "bpf_entry");
     if (h == 0) {
-        loaded_elf_cnt++;
         current_vm_idx = vm_idx;//set current attach point
-
     }
     printf("current_vm_idx: %d h:%d\n", current_vm_idx, h);
     return h;
 }
 
-int attached_vm_list[9];
+int attached_vm_list[10];
 
 /*
  *  global variable will be initialized to 0 in C language
@@ -69,8 +66,12 @@ int bpf_attach_prog(char* attach_point,int nbytes)
         attached_vm_list[7] = current_vm_idx + 1;
         return 0;
     }
-    if (strncmp(attach_point, "enable_udp_checksum_filter", nbytes) == 0) {
+    if(strncmp(attach_point,"scheduler_preempt_run",nbytes)==0){
         attached_vm_list[8] = current_vm_idx + 1;
+        return 0;
+    }
+    if (strncmp(attach_point, "enable_udp_checksum_filter", nbytes) == 0) {
+        attached_vm_list[9] = current_vm_idx + 1;
         return 0;
     }
     return -1;
@@ -106,8 +107,12 @@ int bpf_unattach_prog(char* attach_point,int nbytes)
         attached_vm_list[7] = -1;
         return 0;
     }
-    if (strncmp(attach_point, "enable_udp_checksum_filter", nbytes) == 0) {
+    if(strncmp(attach_point,"scheduler_preempt_run",nbytes)==0){
         attached_vm_list[8] = -1;
+        return 0;
+    }
+    if (strncmp(attach_point, "enable_udp_checksum_filter", nbytes) == 0) {
+        attached_vm_list[9] = -1;
         return 0;
     }
     return 0;
@@ -136,14 +141,16 @@ void bpf_syscall_post_trace(int syscall_num,int pid, int syscall_result){
 
 }
 
-int bpf_syscall_post_filter(int syscall_num,int pid, int syscall_result){
+int bpf_syscall_post_filter(int syscall_num,int pid, int syscall_result) {
     return syscall_result;
 }
 
 int bpf_sch_check_preempt_tick(struct proc* p){
     if(attached_vm_list[5]>0)
     {
-
+        uint64 ret = 0;
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[5]-1],p,sizeof (struct proc),&ret);
+        return ret;
     }
     return 0;
 }
@@ -164,13 +171,51 @@ int bpf_sch_wake_preempt_entity(struct proc* p){
     return 0;
 }
 
+struct proc all_runnable_proc[NPROC+1];
+
+int bpf_sch_check_run(struct proc* p, struct proc* all_proc, int n){
+    if(attached_vm_list[8]>0)
+    {
+        uint64 ret = 0;
+        int cp_idx = 0;
+        int j = 1;
+        //printf("should I run %d?\n",p->pid);
+        //printf("current runnable process pid : [");
+
+        for(int i = 0;i<NPROC;i++)
+        {
+            if(all_proc[i].state == RUNNABLE){
+                printf("%d, ",all_proc[i].pid);
+                all_runnable_proc[j] = all_proc[i];
+                if(all_proc[i].pid == p->pid)
+                    cp_idx = j - 1;
+                j++;
+            }
+        }
+
+        printf("]\n");
+
+        *((int*)all_runnable_proc) = cp_idx;
+        *((int*)all_runnable_proc + 1) = j - 1;
+        *((int*)all_runnable_proc + 2) = 0;
+        int stat = ubpf_exec(&g_ubpf_vm[attached_vm_list[8]-1], all_runnable_proc, j*sizeof(struct proc), &ret);
+
+        //printf("min : %d\n",*((int*)all_runnable_proc + 2));
+        //printf("ret : %d\n",ret);
+        //printf("%d\n",ret);
+        if(stat == 0)
+            return ret;
+    }
+    return 0;
+}
+
 int bpf_enable_udp_checksum_filter() {
-    if (attached_vm_list[8] > 0) {
+    if (attached_vm_list[9] > 0) {
         uint64 ret = 0;
         //printf("bpf input %d\n",num);
         char mem[16];
         int len = 16;
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[8]-1], mem, len, &ret);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[9]-1], mem, len, &ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }

@@ -38,3 +38,4 @@ entry("sleep");
 entry("uptime");
 entry("bpf");
 entry("connect");
+entry("chpr");

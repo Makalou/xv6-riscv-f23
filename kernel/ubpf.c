@@ -72,11 +72,16 @@ struct ubpf_vm*
 ubpf_create(int* vm_idx) {
     struct ubpf_vm* vm = NULL;
     int i = 0;
-    for (vm = g_ubpf_vm; vm->ext_funcs != NULL && i != MAX_VM_NUM; vm++, i++);
+    for (vm = g_ubpf_vm; i != MAX_VM_NUM; vm++, i++){
+        if(vm->ext_funcs == NULL)
+            break;
+    }
+
     if (i == MAX_VM_NUM) {
         *vm_idx = -1;
         return NULL;
     }
+
     vm->ext_funcs = (ext_func **)&g_ext_funcs[i * MAX_EXT_FUNCS];
     if (vm->ext_funcs == NULL) {
         ubpf_destroy(vm);
@@ -359,7 +364,7 @@ ubpf_load(struct ubpf_vm* vm, int vm_idx,const void* code, uint32_t code_len)
         return -1;
     }
 
-    vm->insts = &g_ebpf_inst[vm_idx*UBPF_MAX_INSTS];
+    vm->insts = &g_ebpf_inst[vm_idx * UBPF_MAX_INSTS];
     if (vm->insts == NULL) {
         ERR("out of memory");
         return -1;

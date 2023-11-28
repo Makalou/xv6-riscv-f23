@@ -125,6 +125,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->prior = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -455,18 +456,19 @@ scheduler(void)
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       int should_run = 0;
-      should_run = bpf_sch_check_preempt_tick(p);
-      if(should_run!=0){
-          //decide by bpf-scheduler
-          if(should_run>0){
-              p->state = RUNNING;
-              c->proc = p;
-              swtch(&c->context, &p->context);
-              c->proc = 0;
-          }
-      }else{
-          //decide by default-scheduler
-          if(p->state == RUNNABLE) {
+      if(p->state == RUNNABLE) {
+          should_run = bpf_sch_check_run(p, proc, NPROC);
+          if (should_run != 0) {
+              //decide by bpf-scheduler
+              if (should_run > 0) {
+                  p->state = RUNNING;
+                  c->proc = p;
+                  swtch(&c->context, &p->context);
+                  c->proc = 0;
+              }
+          } else {
+              //decide by default-scheduler
+
               // Switch to chosen process.  It is the process's job
               // to release its lock and then reacquire it
               // before jumping back to us.
@@ -694,4 +696,23 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+chpr(int pid, int prior)
+{
+    if(prior<0)
+        return -1;
+    struct proc *p;
+
+    for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->pid == pid){
+            p->prior = prior;
+            release(&p->lock);
+            return 0;
+        }
+        release(&p->lock);
+    }
+    return -1;
 }
