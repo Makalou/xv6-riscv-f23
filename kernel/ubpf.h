@@ -119,11 +119,28 @@ ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name);
 
 struct ubpf_vm* ubpf_create(int* vm_idx);
 
+int
+ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_relocation relocation);
+
+int
+ubpf_register_data_relocation_default(struct ubpf_vm* vm);
+
+int
+ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bounds_check bounds_check);
+
+int
+ubpf_register_data_bounds_check_default(struct ubpf_vm* vm);
+
+//Load code into a VM.
+// This must be done before calling ubpf_exec and after registering all functions.
 int ubpf_load(struct ubpf_vm*, int i,const void* ,uint32_t);
 
-int ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_len, const char* main_section_name);
+int ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_len, const char* main_section_name);
 
 int
 ubpf_exec(const struct ubpf_vm* vm,void* mem, size_t mem_len, uint64* bpf_return_value);
+
+extern void* _global_data;
+extern uint64 _global_data_size;
 
 #endif

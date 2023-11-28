@@ -20,14 +20,14 @@
 
 typedef struct _bounds
 {
-    const void* base;
+    void* base;
     uint64 size;
 } bounds;
 
 typedef struct _section
 {
     const Elf64_Shdr* shdr;
-    const void* data;
+    void* data;
     uint64 size;
 } section;
 
@@ -42,7 +42,7 @@ struct relocated_function
     uint64 landed;
 };
 
-static const void*
+static void*
 bounds_check(bounds* bounds, uint64 offset, uint64 size)
 {
     if (offset + size > bounds->size || offset + size < offset) {
@@ -82,22 +82,22 @@ int ehdr_check(const Elf64_Ehdr* ehdr)
     }
 
     if (ehdr->e_ident[EI_DATA] != ELFDATA2LSB) {
-        printf("wrong byte order");
+        printf("wrong byte order\n");
         return -1;
     }
 
     if (ehdr->e_ident[EI_VERSION] != 1) {
-        printf("wrong version");
+        printf("wrong version\n");
         return -1;
     }
 
     if (ehdr->e_ident[EI_OSABI] != ELFOSABI_NONE) {
-        printf("wrong OS ABI");
+        printf("wrong OS ABI\n");
         return -1;
     }
 
     if (ehdr->e_type != ET_REL) {
-        printf("wrong type, expected relocatable");
+        printf("wrong type, expected relocatable\n");
         return -1;
     }
 
@@ -107,7 +107,7 @@ int ehdr_check(const Elf64_Ehdr* ehdr)
     }
 
     if (ehdr->e_shnum > MAX_SECTIONS) {
-        printf("too many sections");
+        printf("too many sections\n");
         return -1;
     }
 
@@ -115,7 +115,7 @@ int ehdr_check(const Elf64_Ehdr* ehdr)
 }
 
 int
-ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size, \
+ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_size, \
         const char* main_function_name)
 {
     bounds b = {.base = elf, .size = elf_size};
@@ -142,14 +142,14 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
     for (i = 0; i < section_count; i++) {
         const Elf64_Shdr* shdr = bounds_check(&b, current_section_header_offset, sizeof(Elf64_Ehdr*));
         if (!shdr) {
-            printf("bad section header offset or size");
+            printf("bad section header offset or size\n");
             goto error;
         }
         current_section_header_offset += ehdr->e_shentsize;
 
-        const void* data = bounds_check(&b, shdr->sh_offset, shdr->sh_size);
+        void* data = bounds_check(&b, shdr->sh_offset, shdr->sh_size);
         if (!data) {
-            printf("bad section offset or size");
+            printf("bad section offset or size\n");
             goto error;
         }
 
@@ -158,7 +158,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
         sections[i].size = shdr->sh_size;
     }
 
-    const char* strtab_data = NULL;
+    char* strtab_data = NULL;
     int strtab_size = 0;
     for (i = 0; i < section_count; i++) {
         const Elf64_Shdr* shdr = sections[i].shdr;
@@ -170,7 +170,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
     }
 
     if (!strtab_data) {
-        printf("could not find the string table in the elf file");
+        printf("could not find the string table in the elf file\n");
         goto error;
     }
 
@@ -186,7 +186,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
     }
 
     if (!symbols) {
-        printf("could not find the symbol table in the elf file");
+        printf("could not find the symbol table in the elf file\n");
         goto error;
     }
 
@@ -198,7 +198,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
     relocated_functions = (struct relocated_function**)calloc(total_symbols, sizeof(struct relocated_function*));
 
     if (relocated_functions == NULL) {
-        printf("could not allocate memory for storing information about relocated functions");
+        printf("could not allocate memory for storing information about relocated functions\n");
         goto error;
     }
 
@@ -216,19 +216,19 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
         struct relocated_function rf = {};
 
         if (sym->st_name >= strtab_size) {
-            printf("a function symbol contained a bad name");
+            printf("a function symbol contained a bad name\n");
             goto error;
         }
         rf.name = strtab_data + sym->st_name;
 
         if (sym->st_shndx > section_count) {
-            printf("a function symbol contained a bad section index");
+            printf("a function symbol contained a bad section index\n");
             goto error;
         }
         rf.shdr = sections[sym->st_shndx].shdr;
 
         if (rf.shdr->sh_type != SHT_PROGBITS || rf.shdr->sh_flags != (SHF_ALLOC | SHF_EXECINSTR)) {
-            printf("function symbol %s points to a non-executable section");
+            printf("function symbol %s points to a non-executable section\n");
             goto error;
         }
 
@@ -255,7 +255,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
                     (struct relocated_function*)calloc(1, sizeof(struct relocated_function));
         }
         if (rfp == NULL) {
-            printf("could not allocate space to store metadata about a relocated function");
+            printf("could not allocate space to store metadata about a relocated function\n");
             goto error;
         }
         memmove(rfp, &rf, sizeof(struct relocated_function));
@@ -268,7 +268,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
 
     linked_program = (char*)calloc(linked_program_size, sizeof(char));
     if (!linked_program) {
-        printf("failed to allocate memory for the linked program");
+        printf("failed to allocate memory for the linked program\n");
         goto error;
     }
 
@@ -300,7 +300,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
         const Elf64_Rel* rs = relo_section->data;
 
         if (relo_symtab_idx >= section_count) {
-            printf("bad symbol table section index");
+            printf("bad symbol table section index\n");
             goto error;
         }
 
@@ -315,7 +315,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
             memmove(&relocation, rs + j, sizeof(Elf64_Rel));
 
             if (ELF64_R_SYM(relocation.r_info) >= relo_symtab_num_syms) {
-                printf("a relocation contained a bad symbol index");
+                printf("a relocation contained a bad symbol index\n");
                 goto error;
             }
 
@@ -325,7 +325,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
             Elf64_Sym relo_sym;
             memmove(&relo_sym, relo_syms + ELF64_R_SYM(relocation.r_info), sizeof(Elf64_Sym));
             if (relo_sym.st_name >= strtab_size) {
-                printf("a relocation's symbol contained a bad name");
+                printf("a relocation's symbol contained a bad name\n");
                 goto error;
             }
             const char* relo_sym_name = strtab_data + relo_sym.st_name;
@@ -346,55 +346,58 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
             }
 
             if (!source_function) {
-                printf("a relocation's symbol contained a bad name");
+                printf("a relocation's symbol contained a bad name\n");
                 goto error;
             }
 
             struct ebpf_inst* applies_to_inst =
-                    (struct
-                            ebpf_inst*)(source_function->linked_data + (relocation.r_offset - source_function->native_section_start));
+                    (struct ebpf_inst*)(source_function->linked_data + (relocation.r_offset - source_function->native_section_start));
             uint64 applies_to_inst_index =
                     source_function->landed + ((relocation.r_offset - source_function->native_section_start) / 8);
 
             if (!source_function) {
-                printf("an instruction with relocation is not in a function");
+                printf("an instruction with relocation is not in a function\n");
                 goto error;
             }
 
             switch (ELF64_R_TYPE(relocation.r_info)) {
                 case R_BPF_64_64: {
                     if (relocation.r_offset + 8 > sections[relo_applies_to_section].size) {
-                        printf("bad R_BPF_64_64 relocation offset");
+                        printf("bad R_BPF_64_64 relocation offset\n");
                         goto error;
                     }
 
                     if (relo_sym.st_shndx > section_count) {
-                        printf("bad R_BPF_64_64 relocation section index");
+                        printf("bad R_BPF_64_64 relocation section index\n");
                         goto error;
                     }
                     section* map = &sections[relo_sym.st_shndx];
-                    if (map->shdr->sh_type != SHT_PROGBITS || map->shdr->sh_flags != (SHF_ALLOC | SHF_WRITE)) {
-                        printf("bad R_BPF_64_64 relocation section");
+                    if (/*map->shdr->sh_type != SHT_PROGBITS ||*/ map->shdr->sh_flags != (SHF_ALLOC | SHF_WRITE)) {
+                        printf("bad R_BPF_64_64 relocation section\n");
                         goto error;
                     }
 
                     if (relo_sym.st_size + relo_sym.st_value > map->size) {
-                        printf("bad R_BPF_64_64 size");
+                        printf("bad R_BPF_64_64 size\n");
                         goto error;
                     }
 
                     struct ebpf_inst* applies_to_inst2 = applies_to_inst + 1;
                     if (applies_to_inst->opcode != EBPF_OP_LDDW) {
-                        printf("bad R_BPF_64_64 relocation instruction");
+                        printf("bad R_BPF_64_64 relocation instruction\n");
                         goto error;
                     }
                     if (relocation.r_offset + sizeof(struct ebpf_inst) * 2 > sections[relo_applies_to_section].size) {
-                        printf("bad R_BPF_64_64 relocation offset");
+                        printf("bad R_BPF_64_64 relocation offset\n");
                         goto error;
                     }
 
+                    //char* section_name = strtab_data + relo_sym.st_name;
+                    //printf("map name %s, map size : %d\n",section_name,map->size);
+                    //printf("\n");
+
                     if (!vm->data_relocation_function) {
-                        printf("R_BPF_64_64 data relocation function not set");
+                        printf("R_BPF_64_64 data relocation function not set\n");
                         goto error;
                     }
 
@@ -425,7 +428,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,const void* elf, size_t elf_size
                             }
                         }
                         if (!target_function) {
-                            printf("relocated target of a function call does not point to a known function");
+                            printf("relocated target of a function call does not point to a known function\n");
                             goto error;
                         }
 

@@ -342,6 +342,77 @@ ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
 }
 
 int
+ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_relocation relocation)
+{
+    if (vm->data_relocation_function != NULL) {
+        return -1;
+    }
+    vm->data_relocation_function = relocation;
+    vm->data_relocation_user_data = user_context;
+    return 0;
+}
+
+void* _global_data;
+uint64 _global_data_size;
+
+static uint64
+default_data_relocator(
+        void* user_context,
+        const uint8_t* map_data,
+        uint64 map_data_size,
+        const char* symbol_name,
+        uint64 symbol_offset,
+        uint64 symbol_size)
+{
+    (void)user_context; // unused
+    (void)symbol_name;  // unused
+    (void)symbol_size;  // unused
+
+    if (_global_data == NULL) {
+        _global_data = kalloc();
+        _global_data_size = map_data_size;
+        //memmove(_global_data, map_data, map_data_size);
+        // I don't know why global variable in bpf program
+        // are not automatically initialized to zero, wired...
+        memset(_global_data,0,map_data_size);
+    }
+    const uint64* target_address = (const uint64*)((uint64)_global_data + symbol_offset);
+    return (uint64)target_address;
+}
+
+int ubpf_register_data_relocation_default(struct ubpf_vm* vm)
+{
+    return ubpf_register_data_relocation(vm,NULL,default_data_relocator);
+}
+
+int
+ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bounds_check bounds_check)
+{
+    if (vm->bounds_check_function != NULL) {
+        return -1;
+    }
+    vm->bounds_check_function = bounds_check;
+    vm->bounds_check_user_data = user_context;
+    return 0;
+}
+
+static bool
+data_relocation_bounds_checker(void* user_context, uint64 addr, uint64 size)
+{
+    (void)user_context; // unused
+    if ((uint64)_global_data <= addr && (addr + size) <= ((uint64)_global_data + _global_data_size)) {
+        return true;
+    }
+    return false;
+}
+
+int
+ubpf_register_data_bounds_check_default(struct ubpf_vm* vm)
+{
+    return ubpf_register_data_bounds_check(vm,NULL,data_relocation_bounds_checker);
+}
+
+int
 ubpf_load(struct ubpf_vm* vm, int vm_idx,const void* code, uint32_t code_len)
 {
     //const struct ebpf_inst* source_inst = code;

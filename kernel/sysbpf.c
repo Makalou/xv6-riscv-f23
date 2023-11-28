@@ -11,7 +11,7 @@
 
 int current_vm_idx;
 
-int bpf_load_prog(const char* filename,int size)
+int bpf_load_prog(char* filename,int size)
 {
     //todo: wait until current program finish
     int vm_idx = 0;
@@ -20,6 +20,8 @@ int bpf_load_prog(const char* filename,int size)
         return -1;
     }
     // Support adding multiple elf files.
+    ubpf_register_data_relocation_default(&g_ubpf_vm[vm_idx]);
+    ubpf_register_data_bounds_check_default(&g_ubpf_vm[vm_idx]);
     int h = ubpf_load_elf_ex(&g_ubpf_vm[vm_idx], vm_idx, filename, size, "bpf_entry");
     if (h == 0) {
         current_vm_idx = vm_idx;//set current attach point
