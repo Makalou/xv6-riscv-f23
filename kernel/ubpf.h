@@ -122,14 +122,14 @@ struct ubpf_vm* ubpf_create(int* vm_idx);
 int
 ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_relocation relocation);
 
-int
-ubpf_register_data_relocation_default(struct ubpf_vm* vm);
+//int
+//ubpf_register_data_relocation_default(struct ubpf_vm* vm);
 
 int
 ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bounds_check bounds_check);
 
-int
-ubpf_register_data_bounds_check_default(struct ubpf_vm* vm);
+//int
+//ubpf_register_data_bounds_check_default(struct ubpf_vm* vm);
 
 //Load code into a VM.
 // This must be done before calling ubpf_exec and after registering all functions.

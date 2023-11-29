@@ -8,6 +8,7 @@
 #include "ubpf.h"
 #include "bpf_hooks.h"
 #include "bpf_args.h"
+#include "bpf_map.h"
 
 int current_vm_idx;
 
@@ -20,13 +21,15 @@ int bpf_load_prog(char* filename,int size)
         return -1;
     }
     // Support adding multiple elf files.
-    ubpf_register_data_relocation_default(&g_ubpf_vm[vm_idx]);
-    ubpf_register_data_bounds_check_default(&g_ubpf_vm[vm_idx]);
+    struct bpf_map_def* map = 0;
+    ubpf_register_data_relocation(&g_ubpf_vm[vm_idx],&map,bpf_map_relocator);
     int h = ubpf_load_elf_ex(&g_ubpf_vm[vm_idx], vm_idx, filename, size, "bpf_entry");
+    ubpf_register_data_bounds_check(&g_ubpf_vm[vm_idx],map,bpf_map_relocation_bounds_checker);
+
     if (h == 0) {
         current_vm_idx = vm_idx;//set current attach point
     }
-    printf("current_vm_idx: %d h:%d\n", current_vm_idx, h);
+    //printf("current_vm_idx: %d h:%d\n", current_vm_idx, h);
     return h;
 }
 
@@ -124,9 +127,10 @@ int bpf_unattach_prog(char* attach_point,int nbytes)
 void bpf_syscall_pre_trace(struct proc* p)
 {
     if (attached_vm_list[1] > 0) {
+        uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[1] - 1], &arg, sizeof(struct bpf_syscall_arg), NULL);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[1] - 1], &arg, sizeof(struct bpf_syscall_arg), &ret);
     }
 }
 
@@ -146,9 +150,10 @@ int bpf_syscall_pre_filter(struct proc* p){
 void bpf_syscall_post_trace(struct proc* p){
     if(attached_vm_list[3]>0)
     {
+        uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),NULL);
+        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
         //printf("bpf return value :%d\n",ret);
     }
 }
@@ -264,9 +269,9 @@ sys_bpf(void)
         case BPF_PROG_UNATTACH:
             return bpf_unattach_prog(attr,nbytes);
         case BPF_MAP_CREATE:
-            break;
+            return bpf_create_map((struct bpf_map_create_attr*) attr);
         case BPF_MAP_LOOKUP_ELEM:
-            break;
+            return bpf_map_lookup_elem((struct bpf_map_lookup_attr*) attr);
         case BPF_MAP_UPDATE_ELEM:
             break;
         case BPF_MAP_DELETE_ELEM:

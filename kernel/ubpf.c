@@ -21,6 +21,7 @@
 #include "ebpf.h"
 #include "riscv.h"
 #include "defs.h"
+#include "bpf_map.h"
 
 // use global variables instead of using malloc
 struct ubpf_vm g_ubpf_vm[MAX_VM_NUM];
@@ -355,6 +356,7 @@ ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_
 void* _global_data;
 uint64 _global_data_size;
 
+/*
 static uint64
 default_data_relocator(
         void* user_context,
@@ -382,9 +384,9 @@ default_data_relocator(
 
 int ubpf_register_data_relocation_default(struct ubpf_vm* vm)
 {
-    return ubpf_register_data_relocation(vm,NULL,default_data_relocator);
+    return ubpf_register_data_relocation(vm,NULL,bpf_map_relocator);
 }
-
+*/
 int
 ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bounds_check bounds_check)
 {
@@ -396,6 +398,7 @@ ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bou
     return 0;
 }
 
+/*
 static bool
 data_relocation_bounds_checker(void* user_context, uint64 addr, uint64 size)
 {
@@ -410,7 +413,7 @@ int
 ubpf_register_data_bounds_check_default(struct ubpf_vm* vm)
 {
     return ubpf_register_data_bounds_check(vm,NULL,data_relocation_bounds_checker);
-}
+}*/
 
 int
 ubpf_load(struct ubpf_vm* vm, int vm_idx,const void* code, uint32_t code_len)

@@ -36,6 +36,7 @@ OBJS = \
   $K/ubpf.o \
   $K/bpf_loader.o \
   $K/sysbpf.o \
+  $K/bpf_map.o \
 
 ifeq ($(LAB),net)
 OBJS += \
@@ -166,14 +167,15 @@ UPROGS=\
 	$U/_bpf_test\
 	$U/_netPFTest\
 	$U/_bpf_sched_test\
+	$U/_bpf_sct_test\
 
 ifeq ($(LAB),net)
 UPROGS += \
 	$U/_nettests
 endif
 
-fs.img: mkfs/mkfs README $(UPROGS) prog.bpf.o netPF.bpf.o fcfs_spt.bpf.o fcfs_run.bpf.o pq_run.bpf.o
-	mkfs/mkfs fs.img README $(UPROGS) prog.bpf.o netPF.bpf.o fcfs_spt.bpf.o fcfs_run.bpf.o pq_run.bpf.o
+fs.img: mkfs/mkfs README $(UPROGS) prog.bpf.o netPF.bpf.o fcfs_spt.bpf.o fcfs_run.bpf.o pq_run.bpf.o syscall_trace.bpf.o
+	mkfs/mkfs fs.img README $(UPROGS) prog.bpf.o netPF.bpf.o fcfs_spt.bpf.o fcfs_run.bpf.o pq_run.bpf.o syscall_trace.bpf.o
 
 -include kernel/*.d user/*.d
 
