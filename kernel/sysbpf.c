@@ -22,9 +22,9 @@ int bpf_load_prog(char* filename,int size)
     }
     // Support adding multiple elf files.
     struct bpf_map_def* map = 0;
-    ubpf_register_data_relocation(&g_ubpf_vm[vm_idx],&map,bpf_map_relocator);
-    int h = ubpf_load_elf_ex(&g_ubpf_vm[vm_idx], vm_idx, filename, size, "bpf_entry");
-    ubpf_register_data_bounds_check(&g_ubpf_vm[vm_idx],map,bpf_map_relocation_bounds_checker);
+    ubpf_register_data_relocation(&bpf_vm_pool[vm_idx],&map,bpf_map_relocator);
+    int h = ubpf_load_elf_ex(&bpf_vm_pool[vm_idx], vm_idx, filename, size, "bpf_entry");
+    ubpf_register_data_bounds_check(&bpf_vm_pool[vm_idx],map,bpf_map_relocation_bounds_checker);
 
     if (h == 0) {
         current_vm_idx = vm_idx;//set current attach point
@@ -130,7 +130,7 @@ void bpf_syscall_pre_trace(struct proc* p)
         uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[1] - 1], &arg, sizeof(struct bpf_syscall_arg), &ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[1] - 1], &arg, sizeof(struct bpf_syscall_arg), &ret);
     }
 }
 
@@ -140,7 +140,7 @@ int bpf_syscall_pre_filter(struct proc* p){
         uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }
@@ -153,7 +153,7 @@ void bpf_syscall_post_trace(struct proc* p){
         uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
         //printf("bpf return value :%d\n",ret);
     }
 }
@@ -164,7 +164,7 @@ int bpf_syscall_post_filter(struct proc* p) {
         uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }
@@ -175,7 +175,7 @@ int bpf_sch_check_preempt_tick(struct proc* p){
     if(attached_vm_list[5]>0)
     {
         uint64 ret = 0;
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[5]-1],p,sizeof (struct proc),&ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[5]-1],p,sizeof (struct proc),&ret);
         return ret;
     }
     return 0;
@@ -184,7 +184,9 @@ int bpf_sch_check_preempt_tick(struct proc* p){
 int bpf_sch_check_preempt_wakeup(struct proc* p){
     if(attached_vm_list[6]>0)
     {
-
+        uint64 ret = 0;
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[6]-1],p,sizeof (struct proc),&ret);
+        return ret;
     }
     return 0;
 }
@@ -192,7 +194,9 @@ int bpf_sch_check_preempt_wakeup(struct proc* p){
 int bpf_sch_wake_preempt_entity(struct proc* p){
     if(attached_vm_list[7]>0)
     {
-
+        uint64 ret = 0;
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[7]-1],p,sizeof (struct proc),&ret);
+        return ret;
     }
     return 0;
 }
@@ -224,7 +228,7 @@ int bpf_sch_check_run(struct proc* p, struct proc* all_proc, int n){
         *((int*)all_runnable_proc) = cp_idx;
         *((int*)all_runnable_proc + 1) = j - 1;
         *((int*)all_runnable_proc + 2) = 0;
-        int stat = ubpf_exec(&g_ubpf_vm[attached_vm_list[8]-1], all_runnable_proc, j*sizeof(struct proc), &ret);
+        int stat = ubpf_exec(&bpf_vm_pool[attached_vm_list[8]-1], all_runnable_proc, j*sizeof(struct proc), &ret);
 
         //printf("min : %d\n",*((int*)all_runnable_proc + 2));
         //printf("ret : %d\n",ret);
@@ -241,7 +245,7 @@ int bpf_enable_udp_checksum_filter() {
         //printf("bpf input %d\n",num);
         char mem[16];
         int len = 16;
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[9]-1], mem, len, &ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[9]-1], mem, len, &ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }

@@ -112,7 +112,7 @@ typedef struct _ebpf_encoded_inst
     };
 } ebpf_encoded_inst;
 
-extern struct ubpf_vm g_ubpf_vm[MAX_VM_NUM];
+extern struct ubpf_vm bpf_vm_pool[MAX_VM_NUM];
 
 unsigned int
 ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name);
@@ -139,8 +139,5 @@ int ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_len, c
 
 int
 ubpf_exec(const struct ubpf_vm* vm,void* mem, size_t mem_len, uint64* bpf_return_value);
-
-extern void* _global_data;
-extern uint64 _global_data_size;
 
 #endif

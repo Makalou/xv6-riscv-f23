@@ -24,7 +24,7 @@
 #include "bpf_map.h"
 
 // use global variables instead of using malloc
-struct ubpf_vm g_ubpf_vm[MAX_VM_NUM];
+struct ubpf_vm bpf_vm_pool[MAX_VM_NUM];
 ext_func g_ext_funcs[MAX_VM_NUM * MAX_EXT_FUNCS];
 const char* g_ext_func_names[MAX_VM_NUM * MAX_EXT_FUNCS];
 struct ebpf_inst g_ebpf_inst[MAX_VM_NUM * UBPF_MAX_INSTS];
@@ -73,7 +73,7 @@ struct ubpf_vm*
 ubpf_create(int* vm_idx) {
     struct ubpf_vm* vm = NULL;
     int i = 0;
-    for (vm = g_ubpf_vm; i != MAX_VM_NUM; vm++, i++){
+    for (vm = bpf_vm_pool; i != MAX_VM_NUM; vm++, i++){
         if(vm->ext_funcs == NULL)
             break;
     }
@@ -352,9 +352,6 @@ ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_
     vm->data_relocation_user_data = user_context;
     return 0;
 }
-
-void* _global_data;
-uint64 _global_data_size;
 
 /*
 static uint64
