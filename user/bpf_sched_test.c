@@ -48,14 +48,16 @@ main(int argc, char *argv[]) {
         bpf(BPF_PROG_UNATTACH, "scheduler_preempt_tick", 23);
         bpf(BPF_PROG_UNATTACH,"scheduler_preempt_run",23);
     }
-    //exit(0);
 
     int pid = fork();
+
     if(pid == 0) {
+        printf("from parent -> ");
         for(int i = 0;i<10;i++)
         {
-            printf("from root %d\n",i);
+            printf("%d, ",i);
         }
+        printf("\n");
         wait((int*)0);
     } else {
         for(int n = 10;n>0;n--)
@@ -63,10 +65,12 @@ main(int argc, char *argv[]) {
             int pid1 = fork();
             if(pid1 > 0){
                 chpr(pid1,n);
+                printf("from %d hello world! -> ",pid1);
                 for(int i = 0;i<20*n;i++)
                 {
-                    printf("from %d %d hello world!\n",pid1,i);
+                    printf("%d, ",i);
                 }
+                printf("\n");
                 exit(0);
             }
         }

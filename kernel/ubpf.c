@@ -24,7 +24,7 @@
 #include "bpf_map.h"
 
 // use global variables instead of using malloc
-struct ubpf_vm g_ubpf_vm[MAX_VM_NUM];
+struct ubpf_vm bpf_vm_pool[MAX_VM_NUM];
 ext_func g_ext_funcs[MAX_VM_NUM * MAX_EXT_FUNCS];
 const char* g_ext_func_names[MAX_VM_NUM * MAX_EXT_FUNCS];
 struct ebpf_inst g_ebpf_inst[MAX_VM_NUM * UBPF_MAX_INSTS];
@@ -66,14 +66,16 @@ ubpf_destroy(struct ubpf_vm* vm)
     //free(vm->ext_func_names);
     vm->ext_func_names = NULL;
     //free(vm);
-    vm = NULL;//???
+    kfree(vm->global_scetion_map.data);
+    vm->global_scetion_map.size = 0;
+    //vm = NULL;//???
 }
 
 struct ubpf_vm*
 ubpf_create(int* vm_idx) {
     struct ubpf_vm* vm = NULL;
     int i = 0;
-    for (vm = g_ubpf_vm; i != MAX_VM_NUM; vm++, i++){
+    for (vm = bpf_vm_pool; i != MAX_VM_NUM; vm++, i++){
         if(vm->ext_funcs == NULL)
             break;
     }
@@ -83,7 +85,7 @@ ubpf_create(int* vm_idx) {
         return NULL;
     }
 
-    vm->ext_funcs = (ext_func **)&g_ext_funcs[i * MAX_EXT_FUNCS];
+    vm->ext_funcs = &g_ext_funcs[i * MAX_EXT_FUNCS];
     if (vm->ext_funcs == NULL) {
         ubpf_destroy(vm);
         *vm_idx = -1;
@@ -101,6 +103,8 @@ ubpf_create(int* vm_idx) {
     vm->translate = ubpf_translate_null;
     vm->unwind_stack_extension_index = -1;
     vm->jitted = NULL;
+    vm->global_scetion_map.data = NULL;
+    vm->global_scetion_map.size = 0;
     *vm_idx = i;
     return vm;
 }
@@ -270,8 +274,8 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                     ERR("invalid call immediate at PC %d", i);
                     return false;
                 }
-                if (vm->ext_funcs[inst.imm]) {
-                    ERR("call to nonexistent function %u at PC %d", inst.imm, i);
+                if (!vm->ext_funcs[inst.imm]) {
+                    ERR("call to nonexistent function %d at PC %d", inst.imm, i);
                     return false;
                 }
             } else if (inst.src == 1) {
@@ -329,6 +333,19 @@ ubpf_store_instruction(const struct ubpf_vm* vm, uint16_t pc, struct ebpf_inst i
     vm->insts[pc] = encode_inst.inst;
 }
 
+int
+ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, void* fn)
+{
+    if (idx >= MAX_EXT_FUNCS) {
+        return -1;
+    }
+
+    vm->ext_funcs[idx] = (ext_func)fn;
+    vm->ext_func_names[idx] = name;
+
+    return 0;
+}
+
 unsigned int
 ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
 {
@@ -353,10 +370,6 @@ ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_
     return 0;
 }
 
-void* _global_data;
-uint64 _global_data_size;
-
-/*
 static uint64
 default_data_relocator(
         void* user_context,
@@ -366,27 +379,27 @@ default_data_relocator(
         uint64 symbol_offset,
         uint64 symbol_size)
 {
-    (void)user_context; // unused
-    (void)symbol_name;  // unused
-    (void)symbol_size;  // unused
-
-    if (_global_data == NULL) {
-        _global_data = kalloc();
-        _global_data_size = map_data_size;
+    //(void)user_context; // unused
+    //(void)symbol_name;  // unused
+    //(void)symbol_size;  // unused
+    struct bpf_global_section* global_section = user_context;
+    if (global_section->data == NULL) {
+        global_section->data = kalloc();
+        global_section->size = map_data_size;
         //memmove(_global_data, map_data, map_data_size);
         // I don't know why global variable in bpf program
         // are not automatically initialized to zero, wired...
-        memset(_global_data,0,map_data_size);
+        memset(global_section->data,0,map_data_size);
     }
-    const uint64* target_address = (const uint64*)((uint64)_global_data + symbol_offset);
+    const uint64* target_address = (const uint64*)((uint64)global_section->data + symbol_offset);
     return (uint64)target_address;
 }
 
 int ubpf_register_data_relocation_default(struct ubpf_vm* vm)
 {
-    return ubpf_register_data_relocation(vm,NULL,bpf_map_relocator);
+    return ubpf_register_data_relocation(vm,&vm->global_scetion_map,default_data_relocator);
 }
-*/
+
 int
 ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bounds_check bounds_check)
 {
@@ -398,12 +411,13 @@ ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bou
     return 0;
 }
 
-/*
+
 static bool
 data_relocation_bounds_checker(void* user_context, uint64 addr, uint64 size)
 {
-    (void)user_context; // unused
-    if ((uint64)_global_data <= addr && (addr + size) <= ((uint64)_global_data + _global_data_size)) {
+    //(void)user_context; // unused
+    struct bpf_global_section* global_section = user_context;
+    if ((uint64)global_section->data <= addr && (addr + size) <= ((uint64)global_section->data + global_section->size)) {
         return true;
     }
     return false;
@@ -412,8 +426,8 @@ data_relocation_bounds_checker(void* user_context, uint64 addr, uint64 size)
 int
 ubpf_register_data_bounds_check_default(struct ubpf_vm* vm)
 {
-    return ubpf_register_data_bounds_check(vm,NULL,data_relocation_bounds_checker);
-}*/
+    return ubpf_register_data_bounds_check(vm,&vm->global_scetion_map,data_relocation_bounds_checker);
+}
 
 int
 ubpf_load(struct ubpf_vm* vm, int vm_idx,const void* code, uint32_t code_len)
@@ -466,29 +480,6 @@ ubpf_load(struct ubpf_vm* vm, int vm_idx,const void* code, uint32_t code_len)
     }
     return 0;
 }
-
-/*
-int
-ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64* bpf_return_value)
-{
-    uint16_t pc = 0;
-    const struct ebpf_inst* insts = vm->insts;
-    uint64* reg;
-    uint64 _reg[16];
-    uint64 ras_index = 0;
-    int return_value = -1;
-
-    uint64 stack[UBPF_STACK_SIZE / sizeof(uint64)];
-    struct ubpf_stack_frame stack_frames[UBPF_MAX_CALL_DEPTH] = {
-        0,
-    };
-
-    if (!insts) {
-        // Code must be loaded before we can execute
-        return -1;
-    }
-}
-*/
 
 struct ebpf_inst
 ubpf_fetch_instruction(const struct ubpf_vm* vm, uint16_t pc)
@@ -1160,7 +1151,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64* bpf_retur
                 // program was assembled with the same endianess as the host machine.
                 if (inst.src == 0) {
                     // Handle call by address to external function.
-                    reg[0] = vm->ext_funcs[inst.imm]->func(reg[1], reg[2], reg[3], reg[4], reg[5]);
+                    reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
                     // Unwind the stack if unwind extension returns success.
                     if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
                         *bpf_return_value = reg[0];
@@ -1175,7 +1166,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64* bpf_retur
                                 ras_index + 1,
                                 UBPF_MAX_CALL_DEPTH,
                                 cur_pc);*/
-                        printf("uBPF error: number of nested functions calls (%lu) exceeds max (%lu) at PC %u\n",
+                        printf("uBPF error: number of nested functions calls (%d) exceeds max (%d) at PC %d\n",
                                ras_index + 1,
                                UBPF_MAX_CALL_DEPTH,
                                cur_pc);

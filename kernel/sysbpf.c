@@ -9,6 +9,7 @@
 #include "bpf_hooks.h"
 #include "bpf_args.h"
 #include "bpf_map.h"
+#include "bpf_helper_func.h"
 
 int current_vm_idx;
 
@@ -21,10 +22,12 @@ int bpf_load_prog(char* filename,int size)
         return -1;
     }
     // Support adding multiple elf files.
-    struct bpf_map_def* map = 0;
-    ubpf_register_data_relocation(&g_ubpf_vm[vm_idx],&map,bpf_map_relocator);
-    int h = ubpf_load_elf_ex(&g_ubpf_vm[vm_idx], vm_idx, filename, size, "bpf_entry");
-    ubpf_register_data_bounds_check(&g_ubpf_vm[vm_idx],map,bpf_map_relocation_bounds_checker);
+    struct ubpf_vm* vm = &bpf_vm_pool[vm_idx];
+
+    register_all_helper_functions(vm);
+    ubpf_register_data_relocation_default(vm);
+    int h = ubpf_load_elf_ex(vm, vm_idx, filename, size, "bpf_entry");
+    ubpf_register_data_bounds_check_default(vm);
 
     if (h == 0) {
         current_vm_idx = vm_idx;//set current attach point
@@ -130,7 +133,7 @@ void bpf_syscall_pre_trace(struct proc* p)
         uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[1] - 1], &arg, sizeof(struct bpf_syscall_arg), &ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[1] - 1], &arg, sizeof(struct bpf_syscall_arg), &ret);
     }
 }
 
@@ -140,7 +143,7 @@ int bpf_syscall_pre_filter(struct proc* p){
         uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }
@@ -153,7 +156,7 @@ void bpf_syscall_post_trace(struct proc* p){
         uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
         //printf("bpf return value :%d\n",ret);
     }
 }
@@ -164,7 +167,7 @@ int bpf_syscall_post_filter(struct proc* p) {
         uint64 ret = 0;
         struct bpf_syscall_arg arg;
         fill_bpf_syscall_arg(&arg,p);
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[2]-1],&arg, sizeof(struct bpf_syscall_arg),&ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }
@@ -175,7 +178,7 @@ int bpf_sch_check_preempt_tick(struct proc* p){
     if(attached_vm_list[5]>0)
     {
         uint64 ret = 0;
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[5]-1],p,sizeof (struct proc),&ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[5]-1],p,sizeof (struct proc),&ret);
         return ret;
     }
     return 0;
@@ -211,7 +214,7 @@ int bpf_sch_check_run(struct proc* p, struct proc* all_proc, int n){
         for(int i = 0;i<NPROC;i++)
         {
             if(all_proc[i].state == RUNNABLE){
-                printf("%d, ",all_proc[i].pid);
+                //printf("%d, ",all_proc[i].pid);
                 all_runnable_proc[j] = all_proc[i];
                 if(all_proc[i].pid == p->pid)
                     cp_idx = j - 1;
@@ -219,12 +222,12 @@ int bpf_sch_check_run(struct proc* p, struct proc* all_proc, int n){
             }
         }
 
-        printf("]\n");
+        //printf("]\n");
 
         *((int*)all_runnable_proc) = cp_idx;
         *((int*)all_runnable_proc + 1) = j - 1;
         *((int*)all_runnable_proc + 2) = 0;
-        int stat = ubpf_exec(&g_ubpf_vm[attached_vm_list[8]-1], all_runnable_proc, j*sizeof(struct proc), &ret);
+        int stat = ubpf_exec(&bpf_vm_pool[attached_vm_list[8]-1], all_runnable_proc, j*sizeof(struct proc), &ret);
 
         //printf("min : %d\n",*((int*)all_runnable_proc + 2));
         //printf("ret : %d\n",ret);
@@ -241,7 +244,7 @@ int bpf_enable_udp_checksum_filter() {
         //printf("bpf input %d\n",num);
         char mem[16];
         int len = 16;
-        ubpf_exec(&g_ubpf_vm[attached_vm_list[9]-1], mem, len, &ret);
+        ubpf_exec(&bpf_vm_pool[attached_vm_list[9]-1], mem, len, &ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
     }
@@ -257,27 +260,43 @@ sys_bpf(void)
     uint64 addr = 0;
     argaddr(1, &addr);
     struct proc *p = myproc();
-    char attr[1024];
+    char* attr = (char*)kalloc();
     if (copyin(p->pagetable, attr, addr, nbytes) < 0) {
         return -1;
     }
+    int result = -1;
     switch (ocmd) {
         case BPF_PROG_LOAD:
-            return bpf_load_prog(attr,nbytes);
-        case BPF_PROG_ATTACH:
-            return bpf_attach_prog(attr,nbytes);
-        case BPF_PROG_UNATTACH:
-            return bpf_unattach_prog(attr,nbytes);
-        case BPF_MAP_CREATE:
-            return bpf_create_map((struct bpf_map_create_attr*) attr);
-        case BPF_MAP_LOOKUP_ELEM:
-            return bpf_map_lookup_elem((struct bpf_map_lookup_attr*) attr);
-        case BPF_MAP_UPDATE_ELEM:
+            result =  bpf_load_prog(attr,nbytes);
             break;
+        case BPF_PROG_ATTACH:
+            result = bpf_attach_prog(attr,nbytes);
+            break;
+        case BPF_PROG_UNATTACH:
+            result = bpf_unattach_prog(attr,nbytes);
+            break;
+        case BPF_MAP_CREATE:
+            result = bpf_create_map((struct bpf_map_create_attr*) attr);
+            break;
+        case BPF_MAP_LOOKUP_ELEM:
+            result = bpf_map_lookup_elem((struct bpf_map_lookup_attr*) attr);
+            break;
+        case BPF_MAP_UPDATE_ELEM:
+            result = bpf_map_update_elem((struct bpf_map_update_attr*) attr);
         case BPF_MAP_DELETE_ELEM:
             break;
+        case BPF_MAP_ACQUIRE:
+            result = bpf_map_acquire((struct bpf_map_lock_attr*)attr);
+            break;
+        case BPF_MAP_RELEASE:
+            result = bpf_map_release((struct bpf_map_lock_attr*)attr);
+            break;
+        case BPF_MAP_GET_DESCRIPTOR:
+            result = bpf_map_get_descriptor(attr,nbytes);
+            break;
         default:
-            return -1;
+            break;
     }
-    return -1;
+    kfree(attr);
+    return result;
 }

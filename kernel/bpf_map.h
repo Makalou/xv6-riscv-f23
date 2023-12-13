@@ -2,11 +2,19 @@
 #define BPF_MAP_H
 
 #include "types.h"
+#include "spinlock.h"
+#include "bpf_map_def.h"
 
-enum bpf_map_type
+struct bpf_map_create_attr
 {
-    bpf_array
+    char name[10];
+    enum bpf_map_type map_type;
+    int value_size;
+    int key_size;
+    int max_eles;
 };
+
+int bpf_create_map(struct bpf_map_create_attr* attr);
 
 struct bpf_map_def
 {
@@ -17,38 +25,8 @@ struct bpf_map_def
     uint32 max_eles;
     void* data;
     uint32 size;
+    struct spinlock rwlock;
 };
-
-struct bpf_map_create_attr
-{
-    char name[10];
-    enum bpf_map_type map_type;
-    uint32 value_size;
-    uint32 key_size;
-    uint32 max_eles;
-};
-
-struct bpf_map_lookup_attr
-{
-    uint32 md;
-    enum bpf_map_type type;
-    union {
-        void* key;
-        uint64 idx;
-    };
-    void* value;
-};
-
-struct bpf_map_update_attr
-{
-    uint32 md;
-    void* key;
-    void* new_value;
-};
-
-int bpf_create_map(struct bpf_map_create_attr* attr);
-
-int bpf_map_lookup_elem(struct bpf_map_lookup_attr* attr);
 
 uint64
 bpf_map_relocator(

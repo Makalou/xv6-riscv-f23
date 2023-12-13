@@ -15,7 +15,7 @@
 #endif
 
 #ifndef R_BPF_64_32
-#define R_BPF_64_32 2
+#define R_BPF_64_32 10
 #endif
 
 typedef struct _bounds
@@ -328,7 +328,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_size, \
                 printf("a relocation's symbol contained a bad name\n");
                 goto error;
             }
-            const char* relo_sym_name = strtab_data + relo_sym.st_name;
+            char* relo_sym_name = strtab_data + relo_sym.st_name;
             /*
              * Let each relocation type handle the semantics of that symbol
              * table entry on its own.
@@ -347,6 +347,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_size, \
 
             if (!source_function) {
                 printf("a relocation's symbol contained a bad name\n");
+                printf("why2?\n");
                 goto error;
             }
 
@@ -359,7 +360,6 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_size, \
                 printf("an instruction with relocation is not in a function\n");
                 goto error;
             }
-
             switch (ELF64_R_TYPE(relocation.r_info)) {
                 case R_BPF_64_64: {
                     if (relocation.r_offset + 8 > sections[relo_applies_to_section].size) {
@@ -373,6 +373,9 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_size, \
                     }
                     section* map = &sections[relo_sym.st_shndx];
                     if (/*map->shdr->sh_type != SHT_PROGBITS ||*/ map->shdr->sh_flags != (SHF_ALLOC | SHF_WRITE)) {
+                        printf("%s\n",relo_sym_name);
+                        printf("sh_type %d\n",map->shdr->sh_type);
+                        printf("sh_flags %d\n",map->shdr->sh_flags);
                         printf("bad R_BPF_64_64 relocation section\n");
                         goto error;
                     }
@@ -413,7 +416,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_size, \
                     break;
                 }
                 case R_BPF_64_32: {
-                    if (applies_to_inst->src == 1) {
+                    if (/*applies_to_inst->src == 1*/false) {
                         // Perform local function call relocation.
                         int target_function_in_section_idx = relo_sym.st_shndx;
 
@@ -438,20 +441,20 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, int vm_idx,void* elf, size_t elf_size, \
                         // Note: This is a uBPF specific relocation type and is not part of the ELF specification.
                         // It is used to perform resolution from helper function name to helper function id.
                         const char* section_name = strtab_data + relo_sym.st_name;
-                        //printf("section_name : %s\n",section_name);
                         unsigned int imm = ubpf_lookup_registered_function(vm, section_name);
                         if (imm == -1) {
                             printf("function '%s' not found", section_name);
                             goto error;
                         }
-
+                        // manually set inst->src to 0. Then ubpf recognizes it as external function
+                        applies_to_inst->src = 0;
                         applies_to_inst->imm = imm;
                     }
                     break;
                 }
                 default:
                     printf(
-                            "Warning: bad relocation type %llu; skipping.\n",
+                            "Warning: bad relocation type %d; skipping.\n",
                             (long long unsigned)ELF64_R_TYPE(relocation.r_info));
                     break;
             }

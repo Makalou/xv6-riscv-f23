@@ -47,9 +47,11 @@
 typedef uint64 (*ubpf_jit_fn)(void* mem, size_t mem_len);
 
 
-typedef struct {
-    uint64 (*func)(uint64 arg0, uint64 arg1, uint64 arg2, uint64 arg3, uint64 arg4);
-} ext_func;
+/*typedef struct {
+
+} ext_func;*/
+
+typedef uint64 (*ext_func)(uint64 arg0, uint64 arg1, uint64 arg2, uint64 arg3, uint64 arg4);
 
 /**
  * @brief Data relocation function that is called by the VM when it encounters a
@@ -73,13 +75,19 @@ typedef uint64 (*ubpf_data_relocation)(
 
 typedef bool (*ubpf_bounds_check)(void* context, uint64 addr, uint64 size);
 
+struct bpf_global_section
+{
+    void* data;
+    int size;
+};
+
 struct ubpf_vm
 {
     struct ebpf_inst* insts;
     uint16_t num_insts;
     ubpf_jit_fn jitted;
     size_t jitted_size;
-    ext_func** ext_funcs;
+    ext_func* ext_funcs;
     bool* int_funcs;
     const char** ext_func_names;
     bool bounds_check_enabled;
@@ -92,6 +100,7 @@ struct ubpf_vm
     void* data_relocation_user_data;
     ubpf_bounds_check bounds_check_function;
     void* bounds_check_user_data;
+    struct bpf_global_section global_scetion_map;
 #ifdef DEBUG
     uint64* regs;
 #endif
@@ -112,24 +121,29 @@ typedef struct _ebpf_encoded_inst
     };
 } ebpf_encoded_inst;
 
-extern struct ubpf_vm g_ubpf_vm[MAX_VM_NUM];
+extern struct ubpf_vm bpf_vm_pool[MAX_VM_NUM];
+
+int
+ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, void* fn);
 
 unsigned int
 ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name);
+
+void register_all_helper_functions(struct ubpf_vm* vm);
 
 struct ubpf_vm* ubpf_create(int* vm_idx);
 
 int
 ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_relocation relocation);
 
-//int
-//ubpf_register_data_relocation_default(struct ubpf_vm* vm);
+int
+ubpf_register_data_relocation_default(struct ubpf_vm* vm);
 
 int
 ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bounds_check bounds_check);
 
-//int
-//ubpf_register_data_bounds_check_default(struct ubpf_vm* vm);
+int
+ubpf_register_data_bounds_check_default(struct ubpf_vm* vm);
 
 //Load code into a VM.
 // This must be done before calling ubpf_exec and after registering all functions.

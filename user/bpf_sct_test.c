@@ -13,6 +13,7 @@ main(int argc, char *argv[]) {
         int fd = open("syscall_trace.bpf.o",O_RDONLY);
         char elf[2048];
         int rb = read(fd,elf,2048);
+        printf("bpf program bytes : %d\n",rb);
         struct bpf_map_create_attr create_attr;
         strcpy(create_attr.name,"counter");
         create_attr.map_type = bpf_array;
@@ -30,20 +31,33 @@ main(int argc, char *argv[]) {
             int val;
             struct bpf_map_lookup_attr lookupAttr;
             lookupAttr.md = md;
-            lookupAttr.type = bpf_array;
             lookupAttr.idx = 20;
             lookupAttr.value = &val;
+            lookupAttr.bpf = 0;
             bpf(BPF_MAP_LOOKUP_ELEM,(char*)&lookupAttr, sizeof(struct bpf_map_lookup_attr));
             printf("mkdir is invoked %d times\n",val);
         }else{
-            char dir_path[] = "dir0";
-            for(int i =0;i<17;i++)
-            {
-                mkdir(dir_path);
-                dir_path[3]++;
+            int pid2 = fork();
+            if(pid2 == 0){
+                char dir_path[] = "dir0n";
+                for(int i =0;i<20;i++)
+                {
+                    mkdir(dir_path);
+                    dir_path[3]++;
+                }
+                printf("%d create many dir\n",pid);
+                exit(0);
+            }else{
+                char dir_path[] = "dir0m";
+                for(int i =0;i<20;i++)
+                {
+                    mkdir(dir_path);
+                    dir_path[3]++;
+                }
+                printf("%d create many dir\n",pid2);
+                exit(0);
             }
-            printf("%d create many dir\n",pid);
-            exit(0);
+
         }
 
     }else{

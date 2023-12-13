@@ -12,6 +12,9 @@
 #define BPF_MAP_LOOKUP_ELEM 5
 #define BPF_MAP_UPDATE_ELEM 6
 #define BPF_MAP_DELETE_ELEM 7
+#define BPF_MAP_ACQUIRE 8
+#define BPF_MAP_RELEASE 9
+#define BPF_MAP_GET_DESCRIPTOR 10
 
 #endif
 

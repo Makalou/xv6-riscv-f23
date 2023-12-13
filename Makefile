@@ -37,6 +37,7 @@ OBJS = \
   $K/bpf_loader.o \
   $K/sysbpf.o \
   $K/bpf_map.o \
+  $K/bpf_helper_func.o \
 
 ifeq ($(LAB),net)
 OBJS += \
