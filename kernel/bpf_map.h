@@ -62,4 +62,20 @@ bpf_map_relocator(
 bool
 bpf_map_relocation_bounds_checker(void* user_context, uint64 addr, uint64 size);
 
+int bpf_set_net_info(char *net);
+
+char *get_net_info_address(void);
+
+void set_network_packet_content(char * c, int len);
+typedef struct netPInfo_ {
+    unsigned char enableUdpCSum;
+    // 0: donot file content
+    // 1: filt packet that contain filterContent
+    // 2: filt packet that not contain filterContent
+    unsigned char filtConfig;
+    char filterContent[64];
+    int filterCLen;
+    char netPContent[128];
+    int netPLen;
+} netPInfo;
 #endif

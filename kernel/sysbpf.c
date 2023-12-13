@@ -15,8 +15,10 @@ int current_vm_idx;
 int bpf_load_prog(char* filename,int size)
 {
     //todo: wait until current program finish
+    printf("enter bpf_load_prog\n");
     int vm_idx = 0;
     ubpf_create(&vm_idx);
+    printf("ubpf_create success\n");
     if (vm_idx < 0) {
         return -1;
     }
@@ -24,6 +26,7 @@ int bpf_load_prog(char* filename,int size)
     struct bpf_map_def* map = 0;
     ubpf_register_data_relocation(&bpf_vm_pool[vm_idx],&map,bpf_map_relocator);
     int h = ubpf_load_elf_ex(&bpf_vm_pool[vm_idx], vm_idx, filename, size, "bpf_entry");
+    printf("ubpf_load_elf_ex success\n");
     ubpf_register_data_bounds_check(&bpf_vm_pool[vm_idx],map,bpf_map_relocation_bounds_checker);
 
     if (h == 0) {
@@ -243,8 +246,8 @@ int bpf_enable_udp_checksum_filter() {
     if (attached_vm_list[9] > 0) {
         uint64 ret = 0;
         //printf("bpf input %d\n",num);
-        char mem[16];
-        int len = 16;
+        char * mem = get_net_info_address();
+        int len = sizeof(netPInfo);
         ubpf_exec(&bpf_vm_pool[attached_vm_list[9]-1], mem, len, &ret);
         //printf("bpf return value :%d\n",ret);
         return ret;
@@ -261,7 +264,8 @@ sys_bpf(void)
     uint64 addr = 0;
     argaddr(1, &addr);
     struct proc *p = myproc();
-    char attr[1024];
+    // BPF content is larger than 1024, double the buffer size.
+    char attr[2048];
     if (copyin(p->pagetable, attr, addr, nbytes) < 0) {
         return -1;
     }
@@ -280,6 +284,8 @@ sys_bpf(void)
             break;
         case BPF_MAP_DELETE_ELEM:
             break;
+        case BPF_UPLOAD_NET_CONFIG:
+            return bpf_set_net_info(attr);
         default:
             return -1;
     }

@@ -11,6 +11,7 @@
 #include "net.h"
 #include "defs.h"
 #include "bpf_hooks.h"
+#include "bpf_map.h"
 
 static uint32 local_ip = MAKE_IP_ADDR(10, 0, 2, 15); // qemu's idea of the guest IP
 static uint8 local_mac[ETHADDR_LEN] = { 0x52, 0x54, 0x00, 0x12, 0x34, 0x56 };
@@ -310,7 +311,8 @@ net_tx_arp(uint16 op, uint8 dmac[ETHADDR_LEN], uint32 dip)
 
   // ethernet + IP part of ARP header
   memmove(arphdr->sha, local_mac, ETHADDR_LEN);
-  arphdr->sip = htonl(local_ip);
+  arphdr->sip = enable_udp_checksum 
+upd filter ret: 1htonl(local_ip);
   memmove(arphdr->tha, dmac, ETHADDR_LEN);
   arphdr->tip = htonl(dip);
 
@@ -346,7 +348,8 @@ net_rx_arp(struct mbuf *m)
   if (ntohs(arphdr->op) != ARP_OP_REQUEST || tip != local_ip) {
     goto done;
   }
-
+enable_udp_checksum 
+upd filter ret: 1
   // handle the ARP request
   memmove(smac, arphdr->sha, ETHADDR_LEN); // sender's ethernet address
   sip = ntohl(arphdr->sip); // sender's IP address (qemu's slirp)
@@ -370,11 +373,17 @@ net_rx_udp(struct mbuf *m, uint16 len, struct ip *iphdr, unsigned short udp_chec
   if (!udphdr) {
     goto fail;
   }
+  // validate UDP checksum
   if (udp_checksum_flag && udp_checksum != udphdr->sum) {
     printf("calculated upd checksum is not equal to the check sum in udp header!\n");
     goto fail;
   }
-  // TODO: validate UDP checksum
+  set_network_packet_content(m->head, m->len);
+  int ret = bpf_enable_udp_checksum_filter();
+  printf("upd filter ret: %d\n", (ret &  0x1));
+  if ((ret & 0x1) == 0) {
+    goto fail;
+  }
   //printf("udp check sum:%d\n", udphdr->sum);
   //printf("udp content: %s", (m->head));
   // validate lengths reported in headers
@@ -448,8 +457,9 @@ void net_rx(struct mbuf *m)
   memmove(tmp, m->head, m->len);
   unsigned short udpChecksum = 0;
   unsigned char udpChecksumFlag = 0;
-  if (bpf_enable_udp_checksum_filter()) {
-    printf("enable_udp_checksum_filter \n");
+  int ret = bpf_enable_udp_checksum_filter();
+  if ((ret & 0x2) > 0) {
+    printf("enable_udp_checksum \n");
     udpChecksum = calculateUDPChecksum(tmp, m->len);
     udpChecksum = ntohs(udpChecksum);
     udpChecksumFlag = 1;

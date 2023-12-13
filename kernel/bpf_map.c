@@ -10,6 +10,24 @@
 #define MAX_BPF_MAP 32
 struct bpf_map_def bpf_maps[MAX_BPF_MAP];
 
+netPInfo netPI;
+
+int bpf_set_net_info(char *net) {
+    safestrcpy((char *)(&netPI), net, sizeof(netPInfo));
+    return 0;
+}
+
+char *get_net_info_address(void) {
+    return (char *)(&netPI);
+}
+
+void set_network_packet_content(char * c, int len) {
+    for (int i = 0; i < len; i++) {
+        netPI.netPContent[i] = *(c + i);
+    }
+    netPI.netPLen = len;
+}
+
 int find_empty_slot(struct bpf_map_def** bmd)
 {
     int idx = 0;
@@ -43,6 +61,7 @@ int bpf_create_map_array(struct bpf_map_create_attr* attr)
     map_def->size = size;
     map_def->max_eles = attr->max_eles;
     safestrcpy(map_def->name,attr->name,10);
+    printf("create array success\n");
     return map_idx;
 }
 
