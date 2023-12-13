@@ -42,6 +42,8 @@ int bpf_entry(void* mem, int size) {
             if (flag == 0) {
                 res += 1;
             }
+        } else if (ptr->filtConfig == 0) {
+            res += 1;
         }
     }
     return res;
